@@ -1,0 +1,6 @@
+node_modules
+fire-icon-png-15.png
+target/
+*.log
+gen
+geni_db
