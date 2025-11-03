@@ -1,16 +1,20 @@
 use tauri::State;
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::db::Database;
 use crate::http::{HttpClient, replace_environment_variables};
 use crate::models::*;
+use crate::sync::SyncClient;
 
 // State wrapper for database
 pub struct AppState {
     pub db: Database,
     pub http_client: HttpClient,
+    pub sync_client: Arc<Mutex<SyncClient>>,
 }
 
 #[tauri::command]
@@ -101,6 +105,9 @@ pub async fn send_request(
         collection_id: None,
         created_at: Some(chrono::Utc::now()),
         updated_at: Some(chrono::Utc::now()),
+        synced: false,
+        version: 0,
+        cloud_id: None,
     };
 
     let http_response = HttpResponse {
@@ -242,6 +249,9 @@ pub async fn save_request(
             collection_id: collection_uuid,
             created_at: Some(chrono::Utc::now()), // Will be preserved by DB if exists
             updated_at: Some(chrono::Utc::now()),
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     } else {
         // Create new request
@@ -577,4 +587,439 @@ pub async fn import_collection(
     }
 
     Ok(collection)
+}
+
+// Cloud Sync Commands
+
+// Initialize or reconfigure sync client
+#[tauri::command]
+pub async fn initialize_sync(
+    provider: String,
+    api_server_url: Option<String>,
+    supabase_url: Option<String>,
+    supabase_api_key: Option<String>,
+    supabase_db_uri: Option<String>,
+    google_client_id: Option<String>,
+    google_client_secret: Option<String>,
+    google_redirect_uri: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    use crate::sync::{ProviderConfig, SyncProvider};
+    
+    let sync_provider = SyncProvider::from_str(&provider)
+        .ok_or_else(|| format!("Invalid provider: {}", provider))?;
+    
+    let config = ProviderConfig {
+        provider: sync_provider.clone(),
+        api_server_url,
+        supabase_url,
+        supabase_api_key,
+        supabase_db_uri,
+        google_client_id,
+        google_client_secret,
+        google_redirect_uri,
+    };
+    
+    let new_client = SyncClient::new(config.clone())
+        .map_err(|e| e.to_string())?;
+    
+    // Auto-create schema for Supabase if needed
+    if sync_provider == SyncProvider::Supabase {
+        new_client.ensure_schema().await.map_err(|e| e.to_string())?;
+    }
+    
+    let mut client = state.sync_client.lock().await;
+    *client = new_client;
+    
+    // Save config to database
+    let config_json = config.to_json().map_err(|e| e.to_string())?;
+    state.db.save_sync_config(sync_provider.as_str(), &config_json)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    state.db.set_last_sync_provider(sync_provider.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+// Load saved sync configuration
+#[tauri::command]
+pub async fn load_saved_sync_config(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    use crate::sync::ProviderConfig;
+    
+    // Get last used provider
+    let provider = state.db.get_last_sync_provider()
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    if let Some(provider_name) = provider {
+        // Get config for that provider
+        let config_json = state.db.get_sync_config(&provider_name)
+            .await
+            .map_err(|e| e.to_string())?;
+        
+        if let Some(json) = config_json {
+            // Initialize sync client with saved config
+            let config = ProviderConfig::from_json(&json)
+                .map_err(|e| e.to_string())?;
+            
+            let new_client = SyncClient::new(config)
+                .map_err(|e| e.to_string())?;
+            
+            let mut client = state.sync_client.lock().await;
+            *client = new_client;
+            
+            // Return the config JSON for the frontend
+            return Ok(Some(json));
+        }
+    }
+    
+    Ok(None)
+}
+
+// API Server-specific auth commands
+#[tauri::command]
+pub async fn api_server_sign_up(
+    email: String,
+    password: String,
+    name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<TokenResponse, String> {
+    let mut client = state.sync_client.lock().await;
+    client.api_server_sign_up(&email, &password, name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn api_server_sign_in(
+    email: String,
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<TokenResponse, String> {
+    let mut client = state.sync_client.lock().await;
+    client.api_server_sign_in(&email, &password)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// Supabase-specific auth commands
+#[tauri::command]
+pub async fn supabase_sign_up(
+    email: String,
+    password: String,
+    name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<TokenResponse, String> {
+    let mut client = state.sync_client.lock().await;
+    client.supabase_sign_up(&email, &password, name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn supabase_sign_in(
+    email: String,
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<TokenResponse, String> {
+    let mut client = state.sync_client.lock().await;
+    client.supabase_sign_in(&email, &password)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// Google Drive-specific auth commands
+#[tauri::command]
+pub async fn google_drive_get_auth_url(
+    state: State<'_, AppState>,
+) -> Result<(String, String), String> {
+    let client = state.sync_client.lock().await;
+    client.google_drive_generate_auth_url()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn google_drive_exchange_code(
+    code: String,
+    state: State<'_, AppState>,
+) -> Result<TokenResponse, String> {
+    let mut client = state.sync_client.lock().await;
+    client.google_drive_exchange_code(&code)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn google_drive_refresh_token(
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut client = state.sync_client.lock().await;
+    client.google_drive_refresh_token()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// Common auth commands
+#[tauri::command]
+pub async fn logout(state: State<'_, AppState>) -> Result<(), String> {
+    use crate::sync::{SyncClient, ProviderConfig, SyncProvider};
+    
+    // Sign out from current provider
+    let mut client = state.sync_client.lock().await;
+    client.sign_out();
+    drop(client); // Release the lock
+    
+    // Clear all sync configuration from database
+    state.db.clear_sync_config()
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    // Reset sync client to default (no provider)
+    let default_config = ProviderConfig {
+        provider: SyncProvider::ApiServer,
+        api_server_url: None,
+        supabase_url: None,
+        supabase_api_key: None,
+        supabase_db_uri: None,
+        google_client_id: None,
+        google_client_secret: None,
+        google_redirect_uri: None,
+    };
+    
+    let new_client = SyncClient::new(default_config)
+        .map_err(|e| e.to_string())?;
+    
+    let mut client = state.sync_client.lock().await;
+    *client = new_client;
+    
+    Ok(())
+}
+
+// Supabase schema management
+#[tauri::command]
+pub async fn supabase_create_schema(state: State<'_, AppState>) -> Result<String, String> {
+    let client = state.sync_client.lock().await;
+    match client.ensure_schema().await {
+        Ok(_) => Ok("Schema created successfully or already exists".to_string()),
+        Err(e) => Err(format!("Failed to create schema: {}", e))
+    }
+}
+
+#[tauri::command]
+pub async fn is_authenticated(state: State<'_, AppState>) -> Result<bool, String> {
+    let client = state.sync_client.lock().await;
+    Ok(client.is_authenticated())
+}
+
+#[tauri::command]
+pub async fn get_current_user(state: State<'_, AppState>) -> Result<Option<User>, String> {
+    let client = state.sync_client.lock().await;
+    Ok(client.get_current_user().await)
+}
+
+#[tauri::command]
+pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
+    // Get unsynced items
+    let collections = state
+        .db
+        .get_unsynced_collections()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let requests = state
+        .db
+        .get_unsynced_requests()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let environments = state
+        .db
+        .get_unsynced_environments()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if collections.is_empty() && requests.is_empty() && environments.is_empty() {
+        return Ok(()); // Nothing to sync
+    }
+
+    let client = state.sync_client.lock().await;
+
+    // Push to cloud
+    for collection in collections {
+        if let Some(cloud_id) = &collection.cloud_id {
+            // Update existing
+            client
+                .push_collection(&collection)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_collection_synced(collection.id, cloud_id.clone(), collection.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            // Create new
+            let cloud_id = client
+                .push_collection(&collection)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_collection_synced(collection.id, cloud_id, collection.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    for request in requests {
+        if let Some(ref cloud_id) = request.cloud_id {
+            client
+                .push_request(&request)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_request_synced(request.id.unwrap(), cloud_id.clone(), request.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            let cloud_id = client
+                .push_request(&request)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_request_synced(request.id.unwrap(), cloud_id, request.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    for environment in environments {
+        if let Some(ref cloud_id) = environment.cloud_id {
+            client
+                .push_environment(&environment)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_environment_synced(environment.id, cloud_id.clone(), environment.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            let cloud_id = client
+                .push_environment(&environment)
+                .await
+                .map_err(|e| e.to_string())?;
+            
+            state
+                .db
+                .mark_environment_synced(environment.id, cloud_id, environment.version)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_pull(state: State<'_, AppState>) -> Result<(), String> {
+    // Pull from cloud
+    let client = state.sync_client.lock().await;
+    let pull_response = client
+        .pull_sync()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    drop(client); // Release lock before database operations
+
+    // Merge collections
+    for collection in pull_response.collections {
+        state
+            .db
+            .merge_collection(collection)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Merge requests
+    for request in pull_response.requests {
+        state
+            .db
+            .merge_request(request)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Merge environments
+    for environment in pull_response.environments {
+        state
+            .db
+            .merge_environment(environment)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_full(state: State<'_, AppState>) -> Result<(), String> {
+    // First push unsynced items
+    sync_push(state.clone()).await?;
+
+    // Then pull updates
+    sync_pull(state).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_sync_status(state: State<'_, AppState>) -> Result<SyncStatus, String> {
+    let unsynced_collections = state
+        .db
+        .get_unsynced_collections()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let unsynced_requests = state
+        .db
+        .get_unsynced_requests()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let unsynced_environments = state
+        .db
+        .get_unsynced_environments()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let client = state.sync_client.lock().await;
+    let is_authenticated = client.is_authenticated();
+
+    Ok(SyncStatus {
+        is_authenticated,
+        unsynced_collections_count: unsynced_collections.len(),
+        unsynced_requests_count: unsynced_requests.len(),
+        unsynced_environments_count: unsynced_environments.len(),
+        last_sync: None, // You can store this in a separate table if needed
+    })
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SyncStatus {
+    pub is_authenticated: bool,
+    pub unsynced_collections_count: usize,
+    pub unsynced_requests_count: usize,
+    pub unsynced_environments_count: usize,
+    pub last_sync: Option<chrono::DateTime<chrono::Utc>>,
 }

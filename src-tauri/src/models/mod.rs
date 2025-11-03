@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +43,11 @@ pub struct HttpRequest {
     pub collection_id: Option<Uuid>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub synced: bool,
+    #[serde(default)]
+    pub version: i64,
+    pub cloud_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,7 +87,10 @@ impl ToString for HttpMethod {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RequestBody {
-    Raw { content: String, content_type: String },
+    Raw {
+        content: String,
+        content_type: String,
+    },
     Json(serde_json::Value),
     FormData(HashMap<String, String>),
     UrlEncoded(HashMap<String, String>),
@@ -97,6 +105,11 @@ pub struct Collection {
     pub auth: Option<AuthConfig>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub synced: bool,
+    #[serde(default)]
+    pub version: i64,
+    pub cloud_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +120,11 @@ pub struct Environment {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub synced: bool,
+    #[serde(default)]
+    pub version: i64,
+    pub cloud_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,6 +210,9 @@ impl Default for HttpRequest {
             collection_id: None,
             created_at: None,
             updated_at: None,
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     }
 }
@@ -208,6 +229,9 @@ impl HttpRequest {
             collection_id: None,
             created_at: Some(Utc::now()),
             updated_at: Some(Utc::now()),
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     }
 }
@@ -223,10 +247,17 @@ impl Collection {
             auth: None,
             created_at: now,
             updated_at: now,
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     }
 
-    pub fn new_with_parent(name: String, description: Option<String>, parent_id: Option<Uuid>) -> Self {
+    pub fn new_with_parent(
+        name: String,
+        description: Option<String>,
+        parent_id: Option<Uuid>,
+    ) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
@@ -236,6 +267,9 @@ impl Collection {
             auth: None,
             created_at: now,
             updated_at: now,
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     }
 }
@@ -250,6 +284,9 @@ impl Environment {
             is_active: false,
             created_at: now,
             updated_at: now,
+            synced: false,
+            version: 0,
+            cloud_id: None,
         }
     }
 }
@@ -263,4 +300,70 @@ impl RequestHistory {
             timestamp: Utc::now(),
         }
     }
+}
+
+// Cloud Sync Models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub email: String,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginPayload {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisterPayload {
+    pub email: String,
+    pub password: String,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub user: User,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncPushPayload {
+    pub collections: Vec<Collection>,
+    pub requests: Vec<HttpRequest>,
+    pub environments: Vec<Environment>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncPullResponse {
+    pub collections: Vec<Collection>,
+    pub requests: Vec<HttpRequest>,
+    pub environments: Vec<Environment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncConflict {
+    pub item_type: String,
+    pub local_id: Uuid,
+    pub cloud_id: String,
+    pub local_version: i64,
+    pub cloud_version: i64,
+    pub local_updated_at: DateTime<Utc>,
+    pub cloud_updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConflictResolution {
+    pub conflict_id: String,
+    pub resolution: ResolutionStrategy,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ResolutionStrategy {
+    UseLocal,
+    UseCloud,
+    Merge,
 }

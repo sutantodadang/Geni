@@ -326,11 +326,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       tabs: state.tabs.map((tab) =>
         tab.id === tabId
           ? {
-              ...tab,
-              request: { ...tab.request, ...updates },
-              name: updates.name || tab.request.name,
-              saved: false,
-            }
+            ...tab,
+            request: { ...tab.request, ...updates },
+            name: updates.name || tab.request.name,
+            saved: false,
+          }
           : tab,
       ),
     }));
@@ -663,14 +663,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         tabs: state.tabs.map((t) =>
           t.id === tabId
             ? {
-                ...t,
-                name,
-                saved: true,
-                request: {
-                  ...savedRequest,
-                  collection_id: collectionId, // Ensure collection_id is set
-                },
-              }
+              ...t,
+              name,
+              saved: true,
+              request: {
+                ...savedRequest,
+                collection_id: collectionId, // Ensure collection_id is set
+              },
+            }
             : t,
         ),
       }));
@@ -857,9 +857,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           tabs: state.tabs.map((tab) =>
             tab.request.id === requestId
               ? {
-                  ...tab,
-                  request: { ...tab.request, collection_id: newCollectionId },
-                }
+                ...tab,
+                request: { ...tab.request, collection_id: newCollectionId },
+              }
               : tab,
           ),
         }));
@@ -902,10 +902,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         tabs: state.tabs.map((tab) =>
           tab.request.id === requestId
             ? {
-                ...tab,
-                name,
-                request: { ...tab.request, name },
-              }
+              ...tab,
+              name,
+              request: { ...tab.request, name },
+            }
             : tab,
         ),
       }));
@@ -972,5 +972,13 @@ export const initializeStore = async () => {
   // Add initial tab if no tabs exist
   if (store.tabs.length === 0) {
     store.addTab();
+  }
+
+  // Load saved sync configuration
+  try {
+    await invoke("load_saved_sync_config");
+  } catch (error) {
+    console.log("No saved sync config found or failed to load:", error);
+    // Continue anyway - this is not critical
   }
 };
