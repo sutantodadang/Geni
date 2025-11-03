@@ -9,6 +9,8 @@ import { ToastContainer, useToast } from "./components/Toast";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import EnvironmentManager from "./components/EnvironmentManager";
+import SyncSettings from "./components/SyncSettings";
+import SyncIndicator from "./components/SyncIndicator";
 import { Loader2, Settings, Moon, Sun } from "lucide-react";
 import "./App.css";
 
@@ -24,10 +26,11 @@ function AppContent() {
   const { messages, removeToast } = useToast();
   const { isDark, toggleTheme } = useTheme();
   const [showEnvironmentManager, setShowEnvironmentManager] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
   const selectedCollection = collections.find(
-    (col) => col.id === selectedCollectionId,
+    (col) => col.id === selectedCollectionId
   );
   const isLoading = collectionsLoading || environmentsLoading;
 
@@ -71,6 +74,7 @@ function AppContent() {
               <Moon className="h-4 w-4" />
             )}
           </button>
+          <SyncIndicator onClick={() => setShowSyncSettings(true)} />
           <button
             onClick={() => setShowEnvironmentManager(true)}
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -155,6 +159,11 @@ function AppContent() {
       {/* Environment Manager Modal */}
       {showEnvironmentManager && (
         <EnvironmentManager onClose={() => setShowEnvironmentManager(false)} />
+      )}
+
+      {/* Sync Settings Modal */}
+      {showSyncSettings && (
+        <SyncSettings onClose={() => setShowSyncSettings(false)} />
       )}
     </div>
   );

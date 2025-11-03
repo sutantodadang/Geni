@@ -11,6 +11,7 @@ pub struct Database {
     requests: Tree,
     environments: Tree,
     history: Tree,
+    config: Tree,
 }
 
 impl Database {
@@ -21,6 +22,7 @@ impl Database {
         let requests = db.open_tree("requests")?;
         let environments = db.open_tree("environments")?;
         let history = db.open_tree("history")?;
+        let config = db.open_tree("config")?;
 
         Ok(Self {
             db,
@@ -28,17 +30,19 @@ impl Database {
             requests,
             environments,
             history,
+            config,
         })
     }
 
     pub async fn new_embedded() -> Result<Self> {
-        let config = sled::Config::new().temporary(true);
-        let db = config.open()?;
+        let config_db = sled::Config::new().temporary(true);
+        let db = config_db.open()?;
 
         let collections = db.open_tree("collections")?;
         let requests = db.open_tree("requests")?;
         let environments = db.open_tree("environments")?;
         let history = db.open_tree("history")?;
+        let config = db.open_tree("config")?;
 
         Ok(Self {
             db,
@@ -46,6 +50,7 @@ impl Database {
             requests,
             environments,
             history,
+            config,
         })
     }
 
@@ -189,6 +194,9 @@ impl Database {
             collection_id: request.collection_id,
             created_at: Some(created_at),
             updated_at: Some(now),
+            synced: false,
+            version: request.version + 1,
+            cloud_id: request.cloud_id.clone(),
         };
 
         let key = id.to_string();
@@ -411,6 +419,278 @@ impl Database {
 
     pub async fn clear_history(&self) -> Result<()> {
         self.history.clear()?;
+        self.db.flush()?;
+        Ok(())
+    }
+
+    // Sync operations
+    pub async fn mark_collection_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+        let key = id.to_string();
+        if let Some(value) = self.collections.get(&key)? {
+            let mut collection: Collection = serde_json::from_slice(&value)?;
+            collection.synced = true;
+            collection.cloud_id = Some(cloud_id);
+            collection.version = version;
+
+            let updated_value = serde_json::to_vec(&collection)?;
+            self.collections.insert(key, updated_value)?;
+            self.db.flush()?;
+        }
+        Ok(())
+    }
+
+    pub async fn mark_request_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+        let key = id.to_string();
+        if let Some(value) = self.requests.get(&key)? {
+            let mut request: HttpRequest = serde_json::from_slice(&value)?;
+            request.synced = true;
+            request.cloud_id = Some(cloud_id);
+            request.version = version;
+
+            let updated_value = serde_json::to_vec(&request)?;
+            self.requests.insert(key, updated_value)?;
+            self.db.flush()?;
+        }
+        Ok(())
+    }
+
+    pub async fn mark_environment_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+        let key = id.to_string();
+        if let Some(value) = self.environments.get(&key)? {
+            let mut environment: Environment = serde_json::from_slice(&value)?;
+            environment.synced = true;
+            environment.cloud_id = Some(cloud_id);
+            environment.version = version;
+
+            let updated_value = serde_json::to_vec(&environment)?;
+            self.environments.insert(key, updated_value)?;
+            self.db.flush()?;
+        }
+        Ok(())
+    }
+
+    pub async fn get_unsynced_collections(&self) -> Result<Vec<Collection>> {
+        let mut collections = Vec::new();
+
+        for item in self.collections.iter() {
+            let (_, value) = item?;
+            let collection: Collection = serde_json::from_slice(&value)?;
+            if !collection.synced {
+                collections.push(collection);
+            }
+        }
+
+        Ok(collections)
+    }
+
+    pub async fn get_unsynced_requests(&self) -> Result<Vec<HttpRequest>> {
+        let mut requests = Vec::new();
+
+        for item in self.requests.iter() {
+            let (_, value) = item?;
+            let request: HttpRequest = serde_json::from_slice(&value)?;
+            if !request.synced {
+                requests.push(request);
+            }
+        }
+
+        Ok(requests)
+    }
+
+    pub async fn get_unsynced_environments(&self) -> Result<Vec<Environment>> {
+        let mut environments = Vec::new();
+
+        for item in self.environments.iter() {
+            let (_, value) = item?;
+            let environment: Environment = serde_json::from_slice(&value)?;
+            if !environment.synced {
+                environments.push(environment);
+            }
+        }
+
+        Ok(environments)
+    }
+
+    pub async fn merge_collection(&self, cloud_collection: Collection) -> Result<()> {
+        // Check if collection exists locally
+        let existing = self.collections
+            .iter()
+            .find(|item| {
+                if let Ok((_, value)) = item {
+                    if let Ok(local) = serde_json::from_slice::<Collection>(value) {
+                        return local.cloud_id == cloud_collection.cloud_id;
+                    }
+                }
+                false
+            });
+
+        if let Some(Ok((key, value))) = existing {
+            let mut local: Collection = serde_json::from_slice(&value)?;
+
+            // Conflict resolution: use the latest updated_at
+            if cloud_collection.updated_at > local.updated_at || cloud_collection.version > local.version {
+                // Cloud is newer, update local
+                local.name = cloud_collection.name;
+                local.description = cloud_collection.description;
+                local.parent_id = cloud_collection.parent_id;
+                local.auth = cloud_collection.auth;
+                local.updated_at = cloud_collection.updated_at;
+                local.version = cloud_collection.version;
+                local.synced = true;
+                local.cloud_id = cloud_collection.cloud_id;
+
+                let updated_value = serde_json::to_vec(&local)?;
+                self.collections.insert(key, updated_value)?;
+            }
+        } else {
+            // New collection from cloud
+            let mut new_collection = cloud_collection;
+            new_collection.id = Uuid::new_v4(); // Generate new local ID
+            new_collection.synced = true;
+
+            let key = new_collection.id.to_string();
+            let value = serde_json::to_vec(&new_collection)?;
+            self.collections.insert(key, value)?;
+        }
+
+        self.db.flush()?;
+        Ok(())
+    }
+
+    pub async fn merge_request(&self, cloud_request: HttpRequest) -> Result<()> {
+        let existing = self.requests
+            .iter()
+            .find(|item| {
+                if let Ok((_, value)) = item {
+                    if let Ok(local) = serde_json::from_slice::<HttpRequest>(value) {
+                        return local.cloud_id == cloud_request.cloud_id;
+                    }
+                }
+                false
+            });
+
+        if let Some(Ok((key, value))) = existing {
+            let mut local: HttpRequest = serde_json::from_slice(&value)?;
+
+            let local_updated = local.updated_at.unwrap_or(local.created_at.unwrap_or(Utc::now()));
+            let cloud_updated = cloud_request.updated_at.unwrap_or(cloud_request.created_at.unwrap_or(Utc::now()));
+
+            if cloud_updated > local_updated || cloud_request.version > local.version {
+                local.name = cloud_request.name;
+                local.method = cloud_request.method;
+                local.url = cloud_request.url;
+                local.headers = cloud_request.headers;
+                local.body = cloud_request.body;
+                local.collection_id = cloud_request.collection_id;
+                local.updated_at = cloud_request.updated_at;
+                local.version = cloud_request.version;
+                local.synced = true;
+                local.cloud_id = cloud_request.cloud_id;
+
+                let updated_value = serde_json::to_vec(&local)?;
+                self.requests.insert(key, updated_value)?;
+            }
+        } else {
+            let mut new_request = cloud_request;
+            new_request.id = Some(Uuid::new_v4());
+            new_request.synced = true;
+
+            let key = new_request.id.unwrap().to_string();
+            let value = serde_json::to_vec(&new_request)?;
+            self.requests.insert(key, value)?;
+        }
+
+        self.db.flush()?;
+        Ok(())
+    }
+
+    pub async fn merge_environment(&self, cloud_environment: Environment) -> Result<()> {
+        let existing = self.environments
+            .iter()
+            .find(|item| {
+                if let Ok((_, value)) = item {
+                    if let Ok(local) = serde_json::from_slice::<Environment>(value) {
+                        return local.cloud_id == cloud_environment.cloud_id;
+                    }
+                }
+                false
+            });
+
+        if let Some(Ok((key, value))) = existing {
+            let mut local: Environment = serde_json::from_slice(&value)?;
+
+            if cloud_environment.updated_at > local.updated_at || cloud_environment.version > local.version {
+                local.name = cloud_environment.name;
+                local.variables = cloud_environment.variables;
+                local.updated_at = cloud_environment.updated_at;
+                local.version = cloud_environment.version;
+                local.synced = true;
+                local.cloud_id = cloud_environment.cloud_id;
+
+                let updated_value = serde_json::to_vec(&local)?;
+                self.environments.insert(key, updated_value)?;
+            }
+        } else {
+            let mut new_environment = cloud_environment;
+            new_environment.id = Uuid::new_v4();
+            new_environment.synced = true;
+            new_environment.is_active = false; // Don't auto-activate synced environments
+
+            let key = new_environment.id.to_string();
+            let value = serde_json::to_vec(&new_environment)?;
+            self.environments.insert(key, value)?;
+        }
+
+        self.db.flush()?;
+        Ok(())
+    }
+    
+    // Config operations for cloud sync settings
+    pub async fn save_sync_config(&self, provider: &str, config_json: &str) -> Result<()> {
+        let key = format!("sync_provider_{}", provider);
+        self.config.insert(key, config_json.as_bytes())?;
+        self.db.flush()?;
+        Ok(())
+    }
+    
+    pub async fn get_sync_config(&self, provider: &str) -> Result<Option<String>> {
+        let key = format!("sync_provider_{}", provider);
+        match self.config.get(key)? {
+            Some(bytes) => {
+                let config_str = String::from_utf8(bytes.to_vec())?;
+                Ok(Some(config_str))
+            },
+            None => Ok(None),
+        }
+    }
+    
+    pub async fn get_last_sync_provider(&self) -> Result<Option<String>> {
+        match self.config.get("last_sync_provider")? {
+            Some(bytes) => {
+                let provider = String::from_utf8(bytes.to_vec())?;
+                Ok(Some(provider))
+            },
+            None => Ok(None),
+        }
+    }
+    
+    pub async fn set_last_sync_provider(&self, provider: &str) -> Result<()> {
+        self.config.insert("last_sync_provider", provider.as_bytes())?;
+        self.db.flush()?;
+        Ok(())
+    }
+    
+    pub async fn clear_sync_config(&self) -> Result<()> {
+        // Remove last sync provider
+        self.config.remove("last_sync_provider")?;
+        
+        // Remove all provider configs
+        let providers = ["api_server", "supabase", "google_drive"];
+        for provider in &providers {
+            let key = format!("sync_provider_{}", provider);
+            self.config.remove(key)?;
+        }
+        
         self.db.flush()?;
         Ok(())
     }

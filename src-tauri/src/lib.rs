@@ -5,11 +5,15 @@ mod db;
 mod models;
 mod http;
 mod commands;
+mod sync;
 
 use tauri::{Builder, Manager};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use commands::AppState;
 use db::Database;
 use http::HttpClient;
+use sync::{SyncClient, ProviderConfig, SyncProvider};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -26,11 +30,29 @@ pub fn run() {
                 // Create database
                 let db = Database::new().await.expect("Failed to initialize database");
                 let http_client = HttpClient::new();
-                let state = AppState { db, http_client };
+                
+                // Initialize sync client with default provider (API Server for demo)
+                // TODO: Load from config or settings
+                let config = ProviderConfig {
+                    provider: SyncProvider::ApiServer,
+                    api_server_url: Some("http://localhost:3000".to_string()),
+                    supabase_url: None,
+                    supabase_api_key: None,
+                    supabase_db_uri: None,
+                    google_client_id: None,
+                    google_client_secret: None,
+                    google_redirect_uri: None,
+                };
+                
+                let sync_client = SyncClient::new(config)
+                    .expect("Failed to initialize sync client");
+                let sync_client = Arc::new(Mutex::new(sync_client));
+                
+                let state = AppState { db, http_client, sync_client };
 
                 // Manage the state so it's available to all commands
                 app.manage(state);
-                println!("Database and HTTP client initialized successfully");
+                println!("Database, HTTP client, and Sync client initialized successfully");
             });
 
             Ok(())
@@ -78,6 +100,33 @@ pub fn run() {
             // Import/Export commands
             commands::export_collection,
             commands::import_collection,
+
+            // Cloud Sync commands - Configuration
+            commands::initialize_sync,
+            commands::load_saved_sync_config,
+
+            // Cloud Sync commands (API Server)
+            commands::api_server_sign_up,
+            commands::api_server_sign_in,
+
+            // Cloud Sync commands (Supabase)
+            commands::supabase_sign_up,
+            commands::supabase_sign_in,
+            commands::supabase_create_schema,
+            
+            // Cloud Sync commands (Google Drive)
+            commands::google_drive_get_auth_url,
+            commands::google_drive_exchange_code,
+            commands::google_drive_refresh_token,
+            
+            // Common sync commands
+            commands::logout,
+            commands::is_authenticated,
+            commands::get_current_user,
+            commands::sync_push,
+            commands::sync_pull,
+            commands::sync_full,
+            commands::get_sync_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
