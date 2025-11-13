@@ -4,6 +4,10 @@ import { useToast } from "../contexts/ToastContext";
 import Breadcrumb from "./Breadcrumb";
 import HttpMethodSelector from "./HttpMethodSelector";
 import UrlInput from "./UrlInput";
+import FormDataEditor from "./FormDataEditor";
+import UrlEncodedEditor from "./UrlEncodedEditor";
+import PathParamsEditor from "./PathParamsEditor";
+import QueryParamsEditor from "./QueryParamsEditor";
 import {
   Send,
   Save,
@@ -105,66 +109,6 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
     updateTabRequest(tab.id, { headers: newHeaders });
   };
 
-  // URL parameter management
-  const parseUrlParams = (url: string): Record<string, string> => {
-    const params: Record<string, string> = {};
-    try {
-      const urlObj = new URL(url);
-      urlObj.searchParams.forEach((value, key) => {
-        params[key] = value;
-      });
-    } catch {
-      // Invalid URL, return empty params
-    }
-    return params;
-  };
-
-  const updateUrlParams = (params: Record<string, string>) => {
-    try {
-      const urlObj = new URL(tab.request.url);
-      // Clear existing params
-      urlObj.search = "";
-      // Add new params
-      Object.entries(params).forEach(([key, value]) => {
-        if (key.trim() && value.trim()) {
-          urlObj.searchParams.set(key, value);
-        }
-      });
-      updateTabRequest(tab.id, { url: urlObj.toString() });
-    } catch {
-      // Invalid URL, don't update
-    }
-  };
-
-  const addUrlParam = () => {
-    const currentParams = parseUrlParams(tab.request.url);
-    const newParams = { ...currentParams, "": "" };
-    updateUrlParams(newParams);
-  };
-
-  const updateUrlParam = (oldKey: string, newKey: string, value: string) => {
-    const currentParams = parseUrlParams(tab.request.url);
-    const newParams = { ...currentParams };
-
-    if (oldKey !== newKey) {
-      delete newParams[oldKey];
-    }
-    if (newKey.trim()) {
-      newParams[newKey] = value;
-    } else {
-      delete newParams[newKey];
-    }
-
-    updateUrlParams(newParams);
-  };
-
-  const removeUrlParam = (key: string) => {
-    const currentParams = parseUrlParams(tab.request.url);
-    const newParams = { ...currentParams };
-    delete newParams[key];
-    updateUrlParams(newParams);
-  };
-
   // Body management
   const updateBody = (body: RequestBody | undefined) => {
     updateTabRequest(tab.id, { body });
@@ -200,11 +144,7 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
         }
         return "";
       case "form":
-        if (tab.request.body.FormData) {
-          return Object.entries(tab.request.body.FormData)
-            .map(([key, value]) => `${key}=${value}`)
-            .join("\n");
-        }
+        // Form data is now handled by FormDataEditor component
         return "";
       case "urlencoded":
         if (tab.request.body.UrlEncoded) {
@@ -254,15 +194,8 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
         };
         break;
       case "form":
-        const formData: Record<string, string> = {};
-        content.split("\n").forEach((line) => {
-          const [key, ...valueParts] = line.split("=");
-          if (key?.trim()) {
-            formData[key.trim()] = valueParts.join("=") || "";
-          }
-        });
-        newBody = { FormData: formData };
-        break;
+        // Form data is now handled by FormDataEditor component
+        return;
       case "urlencoded":
         const urlEncodedData: Record<string, string> = {};
         content.split("\n").forEach((line) => {
@@ -456,6 +389,16 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
             >
               Params
             </button>
+            <button
+              onClick={() => setActiveTab("pathparams")}
+              className={`py-3 px-1 border-b-2 text-sm font-medium ${
+                activeTab === "pathparams"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              }`}
+            >
+              Path Params
+            </button>
           </nav>
         </div>
 
@@ -643,26 +586,30 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
                   </div>
                 )}
 
-                {(activeBodyTab === "form" ||
-                  activeBodyTab === "urlencoded") && (
-                  <div className="space-y-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {activeBodyTab === "form" ? "Form Data" : "URL Encoded"}
-                    </span>
-                    <textarea
-                      value={getBodyContent()}
-                      onChange={(e) => setBodyContent(e.target.value)}
-                      className="w-full h-40 form-input font-mono text-sm resize-none"
-                      placeholder="key1=value1&#10;key2=value2"
-                      spellCheck={false}
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Enter one key=value pair per line
-                    </p>
-                  </div>
+                {activeBodyTab === "form" && (
+                  <FormDataEditor
+                    value={tab.request.body?.FormData || {}}
+                    onChange={(formData) => {
+                      updateBody(
+                        Object.keys(formData).length > 0
+                          ? { FormData: formData }
+                          : undefined
+                      );
+                    }}
+                  />
+                )}
+
+                {activeBodyTab === "urlencoded" && (
+                  <UrlEncodedEditor
+                    value={tab.request.body?.UrlEncoded || {}}
+                    onChange={(urlEncoded) => {
+                      updateBody(
+                        Object.keys(urlEncoded).length > 0
+                          ? { UrlEncoded: urlEncoded }
+                          : undefined
+                      );
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -670,63 +617,22 @@ const RequestPanel: React.FC<RequestPanelProps> = ({ tab }) => {
 
           {activeTab === "params" && (
             <div className="p-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-                  Query Parameters
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  Query parameters are parsed from the URL automatically.
-                  Changes here will update the URL.
-                </p>
+              <QueryParamsEditor
+                url={tab.request.url}
+                onUrlChange={(url) => updateTabRequest(tab.id, { url })}
+              />
+            </div>
+          )}
 
-                {Object.entries(parseUrlParams(tab.request.url)).map(
-                  ([key, value], index) => (
-                    <div key={index} className="flex space-x-2">
-                      <input
-                        type="text"
-                        value={key}
-                        onChange={(e) =>
-                          updateUrlParam(key, e.target.value, value)
-                        }
-                        className="flex-1 form-input text-sm"
-                        placeholder="Parameter name"
-                      />
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) =>
-                          updateUrlParam(key, key, e.target.value)
-                        }
-                        className="flex-1 form-input text-sm"
-                        placeholder="Parameter value"
-                      />
-                      <button
-                        onClick={() => removeUrlParam(key)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )
-                )}
-
-                <button
-                  onClick={addUrlParam}
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Parameter
-                </button>
-
-                {Object.keys(parseUrlParams(tab.request.url)).length === 0 && (
-                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      No query parameters found. Add some above or include them
-                      in the URL.
-                    </p>
-                  </div>
-                )}
-              </div>
+          {activeTab === "pathparams" && (
+            <div className="p-4">
+              <PathParamsEditor
+                url={tab.request.url}
+                value={tab.request.path_params || {}}
+                onChange={(pathParams) =>
+                  updateTabRequest(tab.id, { path_params: pathParams })
+                }
+              />
             </div>
           )}
         </div>

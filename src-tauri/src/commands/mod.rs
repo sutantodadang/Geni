@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::db::Database;
-use crate::http::{HttpClient, replace_environment_variables};
+use crate::http::{HttpClient, replace_environment_variables, replace_path_parameters};
 use crate::models::*;
 use crate::sync::SyncClient;
 
@@ -31,8 +31,11 @@ pub async fn send_request(
         .map(|env| env.variables)
         .unwrap_or_default();
 
-    // Replace environment variables in URL
-    let url = replace_environment_variables(&payload.url, &env_vars);
+    // Replace path parameters first (e.g., :user_id -> 123)
+    let url_with_path = replace_path_parameters(&payload.url, &payload.path_params);
+    
+    // Then replace environment variables in URL
+    let url = replace_environment_variables(&url_with_path, &env_vars);
 
     // Replace environment variables in headers
     let mut headers = HashMap::new();
@@ -58,10 +61,22 @@ pub async fn send_request(
             },
             RequestBody::FormData(form) => {
                 let mut replaced_form = HashMap::new();
-                for (key, value) in form {
+                for (key, field) in form {
                     let replaced_key = replace_environment_variables(key, &env_vars);
-                    let replaced_value = replace_environment_variables(value, &env_vars);
-                    replaced_form.insert(replaced_key, replaced_value);
+                    let replaced_field = match field {
+                        FormDataField::Text { value } => {
+                            FormDataField::Text {
+                                value: replace_environment_variables(value, &env_vars),
+                            }
+                        },
+                        FormDataField::File { path } => {
+                            // Replace environment variables in file path
+                            FormDataField::File {
+                                path: replace_environment_variables(path, &env_vars),
+                            }
+                        }
+                    };
+                    replaced_form.insert(replaced_key, replaced_field);
                 }
                 RequestBody::FormData(replaced_form)
             },
@@ -84,6 +99,7 @@ pub async fn send_request(
         url,
         headers,
         body,
+        path_params: HashMap::new(), // Path params already applied to URL
         timeout: payload.timeout,
     };
 
@@ -102,6 +118,7 @@ pub async fn send_request(
         url: payload.url,
         headers: payload.headers,
         body: payload.body,
+        path_params: HashMap::new(),
         collection_id: None,
         created_at: Some(chrono::Utc::now()),
         updated_at: Some(chrono::Utc::now()),
@@ -246,6 +263,7 @@ pub async fn save_request(
             url: payload.url,
             headers: payload.headers,
             body: payload.body,
+            path_params: payload.path_params,
             collection_id: collection_uuid,
             created_at: Some(chrono::Utc::now()), // Will be preserved by DB if exists
             updated_at: Some(chrono::Utc::now()),
@@ -258,6 +276,7 @@ pub async fn save_request(
         let mut new_request = HttpRequest::new(payload.name, payload.method, payload.url);
         new_request.headers = payload.headers;
         new_request.body = payload.body;
+        new_request.path_params = payload.path_params;
         new_request.collection_id = collection_uuid;
         new_request
     };
@@ -1022,4 +1041,9 @@ pub struct SyncStatus {
     pub unsynced_requests_count: usize,
     pub unsynced_environments_count: usize,
     pub last_sync: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[tauri::command]
+pub async fn extract_path_params(url: String) -> Result<Vec<String>, String> {
+    Ok(crate::http::extract_path_parameters(&url))
 }
