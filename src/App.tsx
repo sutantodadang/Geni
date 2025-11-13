@@ -83,7 +83,7 @@ function AppContent() {
             <Settings className="h-4 w-4" />
           </button>
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            v0.1.0
+            v0.1.1
           </span>
         </div>
       </header>

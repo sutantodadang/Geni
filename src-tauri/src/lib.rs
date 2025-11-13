@@ -27,8 +27,18 @@ pub fn run() {
         .setup(|app| {
             // Initialize state synchronously in setup
             tauri::async_runtime::block_on(async {
-                // Create database
-                let db = Database::new().await.expect("Failed to initialize database");
+                // Get app data directory
+                let app_data_dir = app.path().app_data_dir()
+                    .expect("Failed to get app data directory");
+                
+                // Create directory if it doesn't exist
+                std::fs::create_dir_all(&app_data_dir)
+                    .expect("Failed to create app data directory");
+                
+                // Create database with proper path
+                let db = Database::new_with_path(app_data_dir.join("geni_db"))
+                    .await
+                    .expect("Failed to initialize database");
                 let http_client = HttpClient::new();
                 
                 // Initialize sync client with default provider (API Server for demo)
