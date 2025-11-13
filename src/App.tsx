@@ -13,6 +13,7 @@ import SyncSettings from "./components/SyncSettings";
 import SyncIndicator from "./components/SyncIndicator";
 import { Loader2, Settings, Moon, Sun } from "lucide-react";
 import "./App.css";
+import packageJson from "../package.json";
 
 function AppContent() {
   const {
@@ -83,7 +84,7 @@ function AppContent() {
             <Settings className="h-4 w-4" />
           </button>
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            v0.1.1
+            v{packageJson.version}
           </span>
         </div>
       </header>
