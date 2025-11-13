@@ -44,6 +44,8 @@ Download the latest release for your platform from the [Releases](https://github
 
 #### macOS Installation Note
 
+**⚠️ Important for v0.1.0 users:** Version 0.1.0 has a critical bug that causes the app to crash on macOS. Please use version **v0.1.1 or later** from the [Releases](https://github.com/sutantodadang/Geni/releases) page.
+
 If you encounter a **"geni is damaged and can't be opened"** error on macOS:
 
 1. Open **Terminal**

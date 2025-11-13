@@ -34,6 +34,25 @@ impl Database {
         })
     }
 
+    pub async fn new_with_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        let db = sled::open(path)?;
+
+        let collections = db.open_tree("collections")?;
+        let requests = db.open_tree("requests")?;
+        let environments = db.open_tree("environments")?;
+        let history = db.open_tree("history")?;
+        let config = db.open_tree("config")?;
+
+        Ok(Self {
+            db,
+            collections,
+            requests,
+            environments,
+            history,
+            config,
+        })
+    }
+
     pub async fn new_embedded() -> Result<Self> {
         let config_db = sled::Config::new().temporary(true);
         let db = config_db.open()?;
