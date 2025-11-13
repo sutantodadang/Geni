@@ -105,6 +105,7 @@ pub fn run() {
             commands::format_json,
             commands::validate_url,
             commands::extract_env_variables,
+            commands::extract_path_params,
             commands::highlight_response,
 
             // Import/Export commands

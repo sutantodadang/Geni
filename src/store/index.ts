@@ -30,10 +30,14 @@ export interface AuthConfig {
   bearer?: BearerAuth;
 }
 
+export type FormDataField =
+  | { Text: { value: string } }
+  | { File: { path: string } };
+
 export interface RequestBody {
   Raw?: { content: string; content_type: string };
   Json?: any;
-  FormData?: Record<string, string>;
+  FormData?: Record<string, FormDataField>;
   UrlEncoded?: Record<string, string>;
 }
 
@@ -44,6 +48,7 @@ export interface HttpRequest {
   url: string;
   headers: Record<string, string>;
   body?: RequestBody;
+  path_params?: Record<string, string>;
   collection_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -599,6 +604,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           url: tab.request.url,
           headers: finalHeaders,
           body: tab.request.body,
+          path_params: tab.request.path_params || {},
           timeout: 30,
         },
       });
@@ -646,6 +652,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           url: tab.request.url,
           headers: tab.request.headers,
           body: tab.request.body,
+          path_params: tab.request.path_params || {},
           collection_id: collectionId,
         },
       });

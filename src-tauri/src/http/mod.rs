@@ -71,8 +71,36 @@ impl HttpClient {
                 },
                 RequestBody::FormData(form) => {
                     let mut form_builder = reqwest::multipart::Form::new();
-                    for (key, value) in form {
-                        form_builder = form_builder.text(key.clone(), value.clone());
+                    for (key, field) in form {
+                        form_builder = match field {
+                            FormDataField::Text { value } => {
+                                form_builder.text(key.clone(), value.clone())
+                            },
+                            FormDataField::File { path } => {
+                                // Read file from path
+                                match std::fs::read(path) {
+                                    Ok(file_bytes) => {
+                                        // Extract filename from path
+                                        let filename = std::path::Path::new(path)
+                                            .file_name()
+                                            .and_then(|n| n.to_str())
+                                            .unwrap_or("file")
+                                            .to_string();
+                                        
+                                        // Create multipart part with file
+                                        let part = reqwest::multipart::Part::bytes(file_bytes)
+                                            .file_name(filename);
+                                        
+                                        form_builder.part(key.clone(), part)
+                                    },
+                                    Err(e) => {
+                                        // If file read fails, add error as text field
+                                        eprintln!("Failed to read file {}: {}", path, e);
+                                        form_builder.text(key.clone(), format!("Error reading file: {}", e))
+                                    }
+                                }
+                            }
+                        };
                     }
                     request_builder.multipart(form_builder)
                 },
@@ -283,6 +311,35 @@ pub fn replace_environment_variables(
     }
 
     result
+}
+
+pub fn replace_path_parameters(
+    url: &str,
+    path_params: &HashMap<String, String>,
+) -> String {
+    let mut result = url.to_string();
+
+    for (key, value) in path_params {
+        let pattern = format!(":{}", key);
+        result = result.replace(&pattern, value);
+    }
+
+    result
+}
+
+pub fn extract_path_parameters(url: &str) -> Vec<String> {
+    let mut params = Vec::new();
+    
+    for segment in url.split(&['/', '?', '&', '='][..]) {
+        if segment.starts_with(':') {
+            let param_name = segment[1..].to_string();
+            if !param_name.is_empty() {
+                params.push(param_name);
+            }
+        }
+    }
+    
+    params
 }
 
 pub fn extract_environment_variables(text: &str) -> Vec<String> {

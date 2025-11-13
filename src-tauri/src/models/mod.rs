@@ -40,6 +40,8 @@ pub struct HttpRequest {
     pub url: String,
     pub headers: HashMap<String, String>,
     pub body: Option<RequestBody>,
+    #[serde(default)]
+    pub path_params: HashMap<String, String>,
     pub collection_id: Option<Uuid>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -86,13 +88,19 @@ impl ToString for HttpMethod {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FormDataField {
+    Text { value: String },
+    File { path: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RequestBody {
     Raw {
         content: String,
         content_type: String,
     },
     Json(serde_json::Value),
-    FormData(HashMap<String, String>),
+    FormData(HashMap<String, FormDataField>),
     UrlEncoded(HashMap<String, String>),
 }
 
@@ -141,6 +149,8 @@ pub struct SendRequestPayload {
     pub url: String,
     pub headers: HashMap<String, String>,
     pub body: Option<RequestBody>,
+    #[serde(default)]
+    pub path_params: HashMap<String, String>,
     pub timeout: Option<u64>, // in seconds
 }
 
@@ -159,6 +169,8 @@ pub struct SaveRequestPayload {
     pub url: String,
     pub headers: HashMap<String, String>,
     pub body: Option<RequestBody>,
+    #[serde(default)]
+    pub path_params: HashMap<String, String>,
     pub collection_id: Option<String>,
 }
 
@@ -207,6 +219,7 @@ impl Default for HttpRequest {
             url: "https://".to_string(),
             headers: HashMap::new(),
             body: None,
+            path_params: HashMap::new(),
             collection_id: None,
             created_at: None,
             updated_at: None,
@@ -226,6 +239,7 @@ impl HttpRequest {
             url,
             headers: HashMap::new(),
             body: None,
+            path_params: HashMap::new(),
             collection_id: None,
             created_at: Some(Utc::now()),
             updated_at: Some(Utc::now()),

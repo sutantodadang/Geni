@@ -210,6 +210,7 @@ impl Database {
             url: request.url.clone(),
             headers: request.headers.clone(),
             body: request.body.clone(),
+            path_params: request.path_params.clone(),
             collection_id: request.collection_id,
             created_at: Some(created_at),
             updated_at: Some(now),
