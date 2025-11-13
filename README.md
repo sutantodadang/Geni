@@ -7,6 +7,7 @@ A lightweight, fast, and native API client built with Rust and Tauri. Geni provi
 ## ✨ Features
 
 ### Core Features (v0.1)
+
 - 🚀 **HTTP Requests**: Send GET, POST, PUT, DELETE, PATCH, HEAD, and OPTIONS requests
 - 📝 **Request Configuration**: Custom headers and request body (JSON, form-data, raw text, URL-encoded)
 - 👀 **Response Viewer**: View response status, headers, and pretty-printed body with JSON syntax highlighting
@@ -17,6 +18,7 @@ A lightweight, fast, and native API client built with Rust and Tauri. Geni provi
 - ⚡ **Native Performance**: Built with Rust for maximum speed and efficiency
 
 ### Architecture
+
 - **Backend**: Rust with Tauri framework
   - `reqwest` for HTTP requests
   - `serde` and `serde_json` for JSON parsing
@@ -36,20 +38,44 @@ A lightweight, fast, and native API client built with Rust and Tauri. Geni provi
 - **Node.js**: Install from [nodejs.org](https://nodejs.org/) (v16 or later)
 - **Bun**: Install from [bun.sh](https://bun.sh/) (or use npm/yarn)
 
-### Installation
+### Download Pre-built Binaries
+
+Download the latest release for your platform from the [Releases](https://github.com/sutantodadang/Geni/releases) page.
+
+#### macOS Installation Note
+
+If you encounter a **"geni is damaged and can't be opened"** error on macOS:
+
+1. Open **Terminal**
+2. Run the following command:
+   ```bash
+   xattr -cr /Applications/geni.app
+   ```
+3. Try opening Geni again
+
+**Why does this happen?** The app is not notarized by Apple because we currently don't have an Apple Developer account ($99/year). This command removes the quarantine attribute that macOS adds to downloaded apps. The app is safe to use - you can verify the source code in this repository.
+
+#### Windows & Linux
+
+Simply run the installer or executable. No additional steps required.
+
+### Building from Source
 
 1. **Clone the repository**
+
    ```bash
-   git clone https://github.com/your-username/geni.git
+   git clone https://github.com/sutantodadang/Geni.git
    cd geni
    ```
 
 2. **Install dependencies**
+
    ```bash
    bun install
    ```
 
 3. **Run in development mode**
+
    ```bash
    bun run tauri dev
    ```
@@ -145,11 +171,13 @@ The React frontend is in `src/`. Key technologies:
 The following commands are exposed from Rust to the frontend:
 
 #### HTTP Requests
+
 - `send_request(payload)` - Send HTTP request
 - `format_json(content)` - Format JSON string
 - `validate_url(url)` - Validate URL format
 
 #### Collections
+
 - `create_collection(payload)` - Create new collection
 - `get_collections()` - Get all collections
 - `delete_collection(id)` - Delete collection
@@ -157,17 +185,20 @@ The following commands are exposed from Rust to the frontend:
 - `import_collection(data)` - Import collection
 
 #### Requests
+
 - `save_request(payload)` - Save request to collection
 - `get_requests(collection_id?)` - Get requests from collection
 - `delete_request(id)` - Delete saved request
 
 #### Environments
+
 - `create_environment(payload)` - Create new environment
 - `get_environments()` - Get all environments
 - `set_active_environment(id?)` - Set active environment
 - `get_active_environment()` - Get current active environment
 
 #### History
+
 - `get_request_history(limit?)` - Get request history
 - `clear_request_history()` - Clear all history
 
@@ -197,6 +228,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🔮 Roadmap
 
 ### v0.2 (Planned)
+
 - [ ] GraphQL support
 - [ ] WebSocket testing
 - [ ] Request scripting (Pre/Post request scripts)
@@ -204,6 +236,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Plugin system
 
 ### v0.3 (Future)
+
 - [ ] API documentation generation
 - [ ] Mock server functionality
 - [ ] Performance testing tools
