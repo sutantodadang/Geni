@@ -143,6 +143,7 @@ interface AppState {
     auth?: AuthConfig,
   ) => Promise<void>;
   renameCollection: (collectionId: string, name: string) => Promise<void>;
+  importPostmanCollection: (jsonData: string) => Promise<Collection>;
 
   // Environment Actions
   loadEnvironments: () => Promise<void>;
@@ -488,6 +489,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
     } catch (error) {
       console.error("Failed to rename collection:", error);
+      throw error;
+    }
+  },
+
+  importPostmanCollection: async (jsonData) => {
+    try {
+      // Send the JSON string directly to Rust for parsing
+      const collection = await invoke<Collection>("import_postman_collection", {
+        jsonData: jsonData,
+      });
+
+      // Reload all collections to include sub-collections (folders)
+      await get().loadCollections();
+
+      // Load requests for the imported collection and its sub-collections
+      const allCollections = get().collections;
+      for (const col of allCollections) {
+        if (col.id === collection.id || col.parent_id === collection.id) {
+          await get().loadCollectionRequests(col.id);
+        }
+      }
+
+      return collection;
+    } catch (error) {
+      console.error("Failed to import Postman collection:", error);
       throw error;
     }
   },
