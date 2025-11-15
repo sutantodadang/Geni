@@ -25,9 +25,12 @@ const CollectionInfo: React.FC<CollectionInfoProps> = ({ collection }) => {
     collections,
     collectionRequestsLoading,
     loadCollectionRequests,
+    renameCollection,
   } = useAppStore();
   const { success, error } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(collection.name);
 
   // Get requests for this collection
   const requests = collectionRequests[collection.id] || [];
@@ -35,7 +38,7 @@ const CollectionInfo: React.FC<CollectionInfoProps> = ({ collection }) => {
 
   // Get child collections
   const childCollections = collections.filter(
-    (col) => col.parent_id === collection.id,
+    (col) => col.parent_id === collection.id
   );
 
   // Get collection statistics
@@ -72,6 +75,33 @@ const CollectionInfo: React.FC<CollectionInfoProps> = ({ collection }) => {
     }
   };
 
+  const handleRename = async () => {
+    if (!editedName.trim() || editedName === collection.name) {
+      setIsEditingName(false);
+      setEditedName(collection.name);
+      return;
+    }
+
+    try {
+      await renameCollection(collection.id, editedName.trim());
+      success("Collection renamed successfully!");
+      setIsEditingName(false);
+    } catch (err) {
+      console.error("Failed to rename collection:", err);
+      error("Failed to rename collection. Please try again.");
+      setEditedName(collection.name);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleRename();
+    } else if (e.key === "Escape") {
+      setIsEditingName(false);
+      setEditedName(collection.name);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Unknown";
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -93,10 +123,26 @@ const CollectionInfo: React.FC<CollectionInfoProps> = ({ collection }) => {
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <Folder className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                  {collection.name}
-                </h1>
+              <div className="flex-1">
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onBlur={handleRename}
+                    onKeyDown={handleKeyDown}
+                    autoFocus
+                    className="text-xl font-semibold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <h1
+                    className="text-xl font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    onClick={() => setIsEditingName(true)}
+                    title="Click to rename"
+                  >
+                    {collection.name}
+                  </h1>
+                )}
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Collection Overview
                 </p>

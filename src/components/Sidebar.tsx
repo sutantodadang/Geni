@@ -16,6 +16,7 @@ import HttpMethodBadge from "./HttpMethodBadge";
 import EnvironmentSelector from "./EnvironmentSelector";
 import {
   Folder,
+  FolderOpen,
   Plus,
   ChevronRight,
   ChevronDown,
@@ -24,6 +25,7 @@ import {
   GripVertical,
   Shield,
   Edit,
+  Upload,
 } from "lucide-react";
 
 interface SidebarProps {}
@@ -52,12 +54,13 @@ const Sidebar: React.FC<SidebarProps> = () => {
     moveRequest,
     renameCollection,
     renameRequest,
+    importPostmanCollection,
   } = useAppStore();
 
   const { success, error } = useToast();
 
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showNewEnvironmentModal, setShowNewEnvironmentModal] = useState(false);
@@ -90,10 +93,14 @@ const Sidebar: React.FC<SidebarProps> = () => {
     onCancel: () => void;
   } | null>(null);
   const [renamingCollection, setRenamingCollection] = useState<string | null>(
-    null,
+    null
   );
   const [renamingRequest, setRenamingRequest] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importJson, setImportJson] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const toggleCollection = (collectionId: string) => {
     const newExpanded = new Set(expandedCollections);
@@ -120,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
       await createCollection(
         newCollectionName.trim(),
         newCollectionDescription.trim() || undefined,
-        targetCollectionId || undefined,
+        targetCollectionId || undefined
       );
       setNewCollectionName("");
       setNewCollectionDescription("");
@@ -128,6 +135,54 @@ const Sidebar: React.FC<SidebarProps> = () => {
       setShowNewCollectionModal(false);
     } catch (error) {
       console.error("Failed to create collection:", error);
+    }
+  };
+
+  const handleImportPostman = async () => {
+    let jsonContent = importJson.trim();
+
+    // If a file is selected, read its content
+    if (importFile) {
+      try {
+        jsonContent = await importFile.text();
+      } catch (err) {
+        console.error("Failed to read file:", err);
+        error("Failed to read the selected file.");
+        return;
+      }
+    }
+
+    if (!jsonContent) {
+      error("Please paste JSON or select a file");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const collection = await importPostmanCollection(jsonContent);
+      success(`Collection "${collection.name}" imported successfully!`);
+      setImportJson("");
+      setImportFile(null);
+      setShowImportModal(false);
+    } catch (err) {
+      console.error("Failed to import Postman collection:", err);
+      error("Failed to import collection. Please check the JSON format.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.name.endsWith(".json")) {
+        error("Please select a JSON file");
+        return;
+      }
+      setImportFile(file);
+      // Clear the textarea when a file is selected
+      setImportJson("");
     }
   };
 
@@ -290,7 +345,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
           "Type:",
           typeof newCollectionId,
           "Length:",
-          newCollectionId?.length,
+          newCollectionId?.length
         );
         await moveRequest(requestId, newCollectionId);
         success("Request moved successfully!");
@@ -301,13 +356,13 @@ const Sidebar: React.FC<SidebarProps> = () => {
         setDragOverTarget(null);
         setActiveDragId(null);
       }
-    },
+    }
   );
 
   // Handle delete with confirmation
   const handleDeleteCollection = async (
     collectionId: string,
-    collectionName: string,
+    collectionName: string
   ) => {
     console.log("🗑️ handleDeleteCollection called", {
       collectionId,
@@ -319,7 +374,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
         console.log(
           "✅ User confirmed deletion, proceeding:",
           collectionId,
-          collectionName,
+          collectionName
         );
         await deleteCollection(collectionId);
         console.log("✅ Collection deleted successfully:", collectionId);
@@ -328,10 +383,10 @@ const Sidebar: React.FC<SidebarProps> = () => {
         // Debug: Check if UI will update
         setTimeout(() => {
           const remainingCollections = collections.filter(
-            (c) => c.id !== collectionId,
+            (c) => c.id !== collectionId
           );
           console.log(
-            `🔍 After deletion - ${remainingCollections.length} collections remaining`,
+            `🔍 After deletion - ${remainingCollections.length} collections remaining`
           );
           const stillExists = collections.some((c) => c.id === collectionId);
           console.log(`🔍 Deleted collection still in store: ${stillExists}`);
@@ -346,10 +401,10 @@ const Sidebar: React.FC<SidebarProps> = () => {
           "❌ Failed to delete collection:",
           err,
           "Collection ID:",
-          collectionId,
+          collectionId
         );
         error(
-          `Failed to delete collection "${collectionName}". Please try again.`,
+          `Failed to delete collection "${collectionName}". Please try again.`
         );
       }
     };
@@ -373,7 +428,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   const handleDeleteRequest = async (
     requestId: string,
     collectionId: string,
-    requestName: string,
+    requestName: string
   ) => {
     console.log("🗑️ handleDeleteRequest called", {
       requestId,
@@ -386,7 +441,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
         console.log(
           "✅ User confirmed request deletion, proceeding:",
           requestId,
-          requestName,
+          requestName
         );
         await deleteRequest(requestId, collectionId);
         console.log("✅ Request deleted successfully:", requestId);
@@ -396,10 +451,10 @@ const Sidebar: React.FC<SidebarProps> = () => {
         setTimeout(() => {
           const currentRequests = getCollectionRequests(collectionId);
           console.log(
-            `🔍 After deletion - collection ${collectionId} now has ${currentRequests.length} requests`,
+            `🔍 After deletion - collection ${collectionId} now has ${currentRequests.length} requests`
           );
           const stillExists = currentRequests.some(
-            (req) => req.id === requestId,
+            (req) => req.id === requestId
           );
           console.log(`🔍 Deleted request still in store: ${stillExists}`);
         }, 100);
@@ -428,7 +483,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   // Handle rename collection
   const handleRenameCollection = async (
     collectionId: string,
-    newName: string,
+    newName: string
   ) => {
     try {
       await renameCollection(collectionId, newName);
@@ -453,7 +508,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   // Start renaming collection
   const startRenamingCollection = (
     collectionId: string,
-    currentName: string,
+    currentName: string
   ) => {
     setRenamingCollection(collectionId);
     setRenameValue(currentName);
@@ -495,7 +550,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   // Get child collections for a given parent
   const getChildCollections = (parentId: string) => {
     return collections.filter(
-      (collection) => collection.parent_id === parentId,
+      (collection) => collection.parent_id === parentId
     );
   };
 
@@ -503,7 +558,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   const renderCollectionItem = (
     collection: any,
     depth: number = 0,
-    _index: number = 0,
+    _index: number = 0
   ) => {
     // Skip rendering if collection doesn't have valid ID
     if (!collection.id) {
@@ -559,15 +614,19 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 onMouseDown={(e) => {
                   e.stopPropagation();
                 }}
-                className="mr-1"
+                className="mr-1.5 flex-shrink-0"
               >
                 {isExpanded ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
                 )}
               </button>
-              <Folder className="h-3 w-3 mr-2 text-gray-500 dark:text-gray-400" />
+              {isExpanded ? (
+                <FolderOpen className="h-4 w-4 mr-2 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+              ) : (
+                <Folder className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              )}
               {renamingCollection === collection.id ? (
                 <input
                   type="text"
@@ -606,7 +665,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                     setShowCollectionDropdown(
                       showCollectionDropdown === collection.id
                         ? null
-                        : collection.id,
+                        : collection.id
                     );
                   }}
                   onPointerDown={(e) => {
@@ -721,12 +780,12 @@ const Sidebar: React.FC<SidebarProps> = () => {
 
         {/* Collection contents (requests and subfolders) - Outside of draggable */}
         {isExpanded && (
-          <div style={{ marginLeft: `${marginLeft + 16}px` }}>
-            <div className="mt-0 space-y-px">
+          <div className="mt-0.5">
+            <div>
               {/* Child collections area */}
               <DroppableArea
                 id={`${collection.id}-collections`}
-                className={`min-h-[20px] transition-colors duration-200 ${
+                className={`min-h-[4px] transition-colors duration-200 ${
                   dragOverTarget === `${collection.id}-collections`
                     ? "bg-blue-50 dark:bg-blue-900/30 border-2 border-dashed border-blue-300 dark:border-blue-500 rounded-md"
                     : ""
@@ -735,7 +794,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
               >
                 <SortableList items={childCollections.map((c) => c.id)}>
                   {childCollections.map((child, childIndex) =>
-                    renderCollectionItem(child, depth + 1, childIndex),
+                    renderCollectionItem(child, depth + 1, childIndex)
                   )}
                 </SortableList>
               </DroppableArea>
@@ -743,7 +802,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
               {/* Requests area */}
               <DroppableArea
                 id={`${collection.id}-requests`}
-                className={`min-h-[8px] transition-colors duration-200 ${
+                className={`min-h-[4px] transition-colors duration-200 ${
                   dragOverTarget === `${collection.id}-requests`
                     ? "bg-green-50 dark:bg-green-900/30 border-2 border-dashed border-green-300 dark:border-green-500 rounded-md"
                     : ""
@@ -751,15 +810,18 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 data={{ type: "request-area", collectionId: collection.id }}
               >
                 {collectionRequestsLoading[collection.id] ? (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 px-2">
+                  <div
+                    className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1"
+                    style={{ marginLeft: `${marginLeft + 8}px` }}
+                  >
                     Loading requests...
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-px">
+                    <div>
                       <SortableList
                         items={getCollectionRequests(collection.id).map(
-                          (r) => r.id!,
+                          (r) => r.id!
                         )}
                       >
                         {getCollectionRequests(collection.id)
@@ -773,7 +835,8 @@ const Sidebar: React.FC<SidebarProps> = () => {
                               {(dragHandleProps) => (
                                 <div
                                   data-type="request"
-                                  className={`flex items-center px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer group transition-all duration-200 ${
+                                  style={{ marginLeft: `${marginLeft + 8}px` }}
+                                  className={`flex items-center px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/70 rounded cursor-pointer group transition-all duration-200 ${
                                     dragOverTarget === request.id
                                       ? "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-dashed border-yellow-400 dark:border-yellow-500 rounded-md"
                                       : ""
@@ -785,13 +848,13 @@ const Sidebar: React.FC<SidebarProps> = () => {
                                   onClick={() => handleLoadRequest(request)}
                                 >
                                   <div
-                                    className="flex items-center mr-1 cursor-grab"
+                                    className="flex items-center mr-1.5 cursor-grab"
                                     data-drag-handle="true"
                                     {...dragHandleProps}
                                   >
                                     <GripVertical className="h-3 w-3 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100" />
                                   </div>
-                                  <FileText className="h-3 w-3 mr-2 text-gray-400 dark:text-gray-500" />
+                                  <FileText className="h-3.5 w-3.5 mr-2 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                   {renamingRequest === request.id ? (
                                     <input
                                       type="text"
@@ -838,7 +901,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                                       e.preventDefault();
                                       startRenamingRequest(
                                         request.id!,
-                                        request.name,
+                                        request.name
                                       );
                                     }}
                                   >
@@ -857,7 +920,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                                       handleDeleteRequest(
                                         request.id!,
                                         collection.id,
-                                        request.name,
+                                        request.name
                                       );
                                     }}
                                     className="opacity-70 group-hover:opacity-100 p-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-200"
@@ -872,7 +935,10 @@ const Sidebar: React.FC<SidebarProps> = () => {
                       </SortableList>
                     </div>
                     {getCollectionRequests(collection.id).length === 0 && (
-                      <div className="text-xs text-gray-400 px-2 italic">
+                      <div
+                        className="text-xs text-gray-400 dark:text-gray-500 px-2 py-1 italic"
+                        style={{ marginLeft: `${marginLeft + 8}px` }}
+                      >
                         No requests in this collection
                       </div>
                     )}
@@ -906,7 +972,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
         >
           <SortableList items={rootCollections.map((c) => c.id)}>
             {rootCollections.map((collection, index) =>
-              renderCollectionItem(collection, 0, index),
+              renderCollectionItem(collection, 0, index)
             )}
           </SortableList>
         </DroppableArea>
@@ -921,7 +987,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
   const updateEnvironmentVar = (
     index: number,
     field: "key" | "value",
-    value: string,
+    value: string
   ) => {
     const updated = [...newEnvironmentVars];
     updated[index][field] = value;
@@ -1007,13 +1073,22 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 Collections
               </span>
             </div>
-            <button
-              onClick={() => setShowNewCollectionModal(true)}
-              className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-              title="New collection"
-            >
-              <Plus className="h-3 w-3" />
-            </button>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title="Import Postman collection"
+              >
+                <Upload className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => setShowNewCollectionModal(true)}
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title="New collection"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
           </div>
 
           <div>
@@ -1292,6 +1367,131 @@ const Sidebar: React.FC<SidebarProps> = () => {
             setSelectedAuthCollection(null);
           }}
         />
+      )}
+
+      {/* Import Postman Collection Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-[600px] max-w-[90vw] mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              Import Postman Collection
+            </h3>
+            <div className="space-y-4">
+              {/* File Upload Option */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select JSON File
+                </label>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="postman-file-input"
+                    disabled={isImporting}
+                  />
+                  <label
+                    htmlFor="postman-file-input"
+                    className="flex-1 cursor-pointer px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors text-center"
+                  >
+                    {importFile ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <FileText className="h-5 w-5 text-blue-500" />
+                        <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                          {importFile.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-1">
+                        <Upload className="h-6 w-6 text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Click to select a JSON file
+                        </span>
+                      </div>
+                    )}
+                  </label>
+                  {importFile && (
+                    <button
+                      onClick={() => setImportFile(null)}
+                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                      title="Remove file"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                    OR
+                  </span>
+                </div>
+              </div>
+
+              {/* Paste JSON Option */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Paste Postman Collection JSON (v2.1 format)
+                </label>
+                <textarea
+                  value={importJson}
+                  onChange={(e) => {
+                    setImportJson(e.target.value);
+                    // Clear file selection when typing
+                    if (e.target.value && importFile) {
+                      setImportFile(null);
+                    }
+                  }}
+                  className="w-full form-input font-mono text-sm"
+                  rows={10}
+                  placeholder='{"info": {"name": "My Collection"}, "item": [...]}'
+                  disabled={isImporting || !!importFile}
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Export your collection from Postman as JSON (v2.1) and paste
+                  it here, or select a JSON file above.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportJson("");
+                  setImportFile(null);
+                }}
+                className="btn-secondary"
+                disabled={isImporting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportPostman}
+                disabled={(!importJson.trim() && !importFile) || isImporting}
+                className="btn-primary flex items-center space-x-2"
+              >
+                {isImporting ? (
+                  <>
+                    <Upload className="h-4 w-4 animate-pulse" />
+                    <span>Importing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    <span>Import</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

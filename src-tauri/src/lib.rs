@@ -6,6 +6,7 @@ mod models;
 mod http;
 mod commands;
 mod sync;
+mod postman;
 
 use tauri::{Builder, Manager};
 use std::sync::Arc;
@@ -111,6 +112,7 @@ pub fn run() {
             // Import/Export commands
             commands::export_collection,
             commands::import_collection,
+            commands::import_postman_collection,
 
             // Cloud Sync commands - Configuration
             commands::initialize_sync,
