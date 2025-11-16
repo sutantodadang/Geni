@@ -7,9 +7,19 @@ import HttpMethodBadge from "./HttpMethodBadge";
 interface TabBarProps {}
 
 const TabBar: React.FC<TabBarProps> = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, addTab, deleteRequest } =
-    useAppStore();
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    addTab,
+    deleteRequest,
+    renameRequest,
+    updateTabRequest,
+  } = useAppStore();
   const { success, error } = useToast();
+  const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
+  const [editedName, setEditedName] = React.useState("");
 
   const handleDeleteRequest = async (tab: any) => {
     if (!tab.request.id || !tab.request.collection_id) {
@@ -28,6 +38,44 @@ const TabBar: React.FC<TabBarProps> = () => {
     }
   };
 
+  const handleRenameRequest = async (tab: any) => {
+    if (
+      !tab.request.id ||
+      !editedName.trim() ||
+      editedName === tab.request.name
+    ) {
+      setEditingTabId(null);
+      return;
+    }
+
+    try {
+      await renameRequest(tab.request.id, editedName.trim());
+      updateTabRequest(tab.id, { name: editedName.trim() });
+      success("Request renamed successfully!");
+      setEditingTabId(null);
+    } catch (err) {
+      console.error("Failed to rename request:", err);
+      error("Failed to rename request. Please try again.");
+      setEditingTabId(null);
+    }
+  };
+
+  const handleTabDoubleClick = (tab: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (tab.request.id) {
+      setEditingTabId(tab.id);
+      setEditedName(tab.request.name);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, tab: any) => {
+    if (e.key === "Enter") {
+      handleRenameRequest(tab);
+    } else if (e.key === "Escape") {
+      setEditingTabId(null);
+    }
+  };
+
   if (tabs.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
@@ -43,29 +91,46 @@ const TabBar: React.FC<TabBarProps> = () => {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center">
+    <div className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center">
       {/* Tabs */}
       <div className="flex-1 flex overflow-x-auto scrollbar-hide">
         {tabs.map((tab) => (
           <div
             key={tab.id}
-            className={`flex items-center min-w-0 max-w-xs border-r border-gray-200 dark:border-gray-700 ${
+            className={`flex items-center min-w-0 max-w-xs border-r border-gray-200 dark:border-gray-700 transition-colors ${
               activeTabId === tab.id
-                ? "bg-white dark:bg-gray-800"
-                : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600"
+                ? "bg-white dark:bg-gray-800 border-t-2 border-t-blue-500"
+                : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800 border-t-2 border-t-transparent"
             }`}
           >
             <button
               onClick={() => setActiveTab(tab.id)}
+              onDoubleClick={(e) => handleTabDoubleClick(tab, e)}
               className="flex-1 flex items-center space-x-2 px-4 py-3 min-w-0 text-left"
             >
               {/* Method Badge */}
               <HttpMethodBadge method={tab.request.method} variant="minimal" />
 
               {/* Tab Name */}
-              <span className="flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
-                {tab.name}
-              </span>
+              {editingTabId === tab.id ? (
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onBlur={() => handleRenameRequest(tab)}
+                  onKeyDown={(e) => handleKeyDown(e, tab)}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                  className="flex-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+                />
+              ) : (
+                <span
+                  className="flex-1 truncate text-sm text-gray-900 dark:text-gray-100"
+                  title={tab.request.id ? "Double-click to rename" : tab.name}
+                >
+                  {tab.name}
+                </span>
+              )}
 
               {/* Loading Indicator */}
               {tab.loading && (
