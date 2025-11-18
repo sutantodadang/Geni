@@ -1,12 +1,12 @@
-use reqwest::{Client, Method};
 use anyhow::Result;
+use base64::{engine::general_purpose, Engine as _};
+use reqwest::{Client, Method};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use syntect::highlighting::ThemeSet;
-use syntect::parsing::SyntaxSet;
 use syntect::html::highlighted_html_for_string;
-use serde_json::Value;
-use base64::{Engine as _, engine::general_purpose};
+use syntect::parsing::SyntaxSet;
 
 use crate::models::*;
 
@@ -59,56 +59,76 @@ impl HttpClient {
         // Add body if present
         if let Some(body) = &payload.body {
             request_builder = match body {
-                RequestBody::Raw { content, content_type } => {
-                    request_builder
-                        .header("Content-Type", content_type)
-                        .body(content.clone())
-                },
-                RequestBody::Json(value) => {
-                    request_builder
-                        .header("Content-Type", "application/json")
-                        .json(value)
-                },
+                RequestBody::Raw {
+                    content,
+                    content_type,
+                } => request_builder
+                    .header("Content-Type", content_type)
+                    .body(content.clone()),
+                RequestBody::Json(value) => request_builder
+                    .header("Content-Type", "application/json")
+                    .json(value),
                 RequestBody::FormData(form) => {
                     let mut form_builder = reqwest::multipart::Form::new();
                     for (key, field) in form {
                         form_builder = match field {
                             FormDataField::Text { value } => {
                                 form_builder.text(key.clone(), value.clone())
-                            },
+                            }
                             FormDataField::File { path } => {
-                                // Read file from path
-                                match std::fs::read(path) {
-                                    Ok(file_bytes) => {
-                                        // Extract filename from path
-                                        let filename = std::path::Path::new(path)
-                                            .file_name()
-                                            .and_then(|n| n.to_str())
-                                            .unwrap_or("file")
-                                            .to_string();
-                                        
-                                        // Create multipart part with file
-                                        let part = reqwest::multipart::Part::bytes(file_bytes)
-                                            .file_name(filename);
-                                        
-                                        form_builder.part(key.clone(), part)
-                                    },
-                                    Err(e) => {
-                                        // If file read fails, add error as text field
-                                        eprintln!("Failed to read file {}: {}", path, e);
-                                        form_builder.text(key.clone(), format!("Error reading file: {}", e))
-                                    }
+                                // Check if file exists
+                                let path_obj = std::path::Path::new(path);
+                                if !path_obj.exists() {
+                                    return Err(anyhow::anyhow!(
+                                        "File does not exist at path: '{}'. Please ensure the file path is correct.",
+                                        path
+                                    ));
                                 }
+
+                                // Check if it's a file (not a directory)
+                                if !path_obj.is_file() {
+                                    return Err(anyhow::anyhow!(
+                                        "Path '{}' is not a file. Please select a file, not a directory.",
+                                        path
+                                    ));
+                                }
+
+                                // Read file from path
+                                let file_bytes = std::fs::read(path)
+                                    .map_err(|e| {
+                                        eprintln!("Failed to read file '{}': {}", path, e);
+                                        anyhow::anyhow!(
+                                            "Failed to read file '{}': {}. Check file permissions and ensure the app has access to this file.",
+                                            path, e
+                                        )
+                                    })?;
+
+                                println!(
+                                    "Successfully read {} bytes from file: {}",
+                                    file_bytes.len(),
+                                    path
+                                );
+
+                                // Extract filename from path
+                                let filename = path_obj
+                                    .file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or("file")
+                                    .to_string();
+
+                                // Create multipart part with file
+                                let part =
+                                    reqwest::multipart::Part::bytes(file_bytes).file_name(filename);
+
+                                form_builder.part(key.clone(), part)
                             }
                         };
                     }
                     request_builder.multipart(form_builder)
-                },
-                RequestBody::UrlEncoded(form) => {
-                    request_builder
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .form(form)
-                },
+                }
+                RequestBody::UrlEncoded(form) => request_builder
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .form(form),
             };
         }
 
@@ -123,15 +143,16 @@ impl HttpClient {
 
         // Extract response data
         let status = response.status().as_u16();
-        let status_text = response.status().canonical_reason().unwrap_or("Unknown").to_string();
+        let status_text = response
+            .status()
+            .canonical_reason()
+            .unwrap_or("Unknown")
+            .to_string();
 
         // Extract headers
         let mut headers = HashMap::new();
         for (key, value) in response.headers() {
-            headers.insert(
-                key.to_string(),
-                value.to_str().unwrap_or("").to_string(),
-            );
+            headers.insert(key.to_string(), value.to_str().unwrap_or("").to_string());
         }
 
         // Get content type for formatting
@@ -180,7 +201,9 @@ impl HttpClient {
                 return self.format_html(body);
             } else if ct_lower.contains("text/css") {
                 return self.format_css(body);
-            } else if ct_lower.contains("application/javascript") || ct_lower.contains("text/javascript") {
+            } else if ct_lower.contains("application/javascript")
+                || ct_lower.contains("text/javascript")
+            {
                 return self.format_javascript(body);
             }
         }
@@ -242,7 +265,9 @@ impl HttpClient {
                 "html"
             } else if ct_lower.contains("text/css") {
                 "css"
-            } else if ct_lower.contains("application/javascript") || ct_lower.contains("text/javascript") {
+            } else if ct_lower.contains("application/javascript")
+                || ct_lower.contains("text/javascript")
+            {
                 "javascript"
             } else if ct_lower.contains("text/plain") {
                 "txt"
@@ -262,13 +287,16 @@ impl HttpClient {
     }
 
     pub fn highlight_syntax(&self, content: &str, language: &str) -> Result<String> {
-        let syntax = self.syntax_set.find_syntax_by_extension(language)
+        let syntax = self
+            .syntax_set
+            .find_syntax_by_extension(language)
             .or_else(|| self.syntax_set.find_syntax_by_name(language))
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
         let theme = &self.theme_set.themes["base16-ocean.dark"];
 
-        let highlighted_html = highlighted_html_for_string(content, &self.syntax_set, syntax, theme)?;
+        let highlighted_html =
+            highlighted_html_for_string(content, &self.syntax_set, syntax, theme)?;
 
         Ok(highlighted_html)
     }
@@ -299,10 +327,7 @@ impl Default for HttpClient {
     }
 }
 
-pub fn replace_environment_variables(
-    text: &str,
-    variables: &HashMap<String, String>,
-) -> String {
+pub fn replace_environment_variables(text: &str, variables: &HashMap<String, String>) -> String {
     let mut result = text.to_string();
 
     for (key, value) in variables {
@@ -313,10 +338,7 @@ pub fn replace_environment_variables(
     result
 }
 
-pub fn replace_path_parameters(
-    url: &str,
-    path_params: &HashMap<String, String>,
-) -> String {
+pub fn replace_path_parameters(url: &str, path_params: &HashMap<String, String>) -> String {
     let mut result = url.to_string();
 
     for (key, value) in path_params {
@@ -329,7 +351,7 @@ pub fn replace_path_parameters(
 
 pub fn extract_path_parameters(url: &str) -> Vec<String> {
     let mut params = Vec::new();
-    
+
     for segment in url.split(&['/', '?', '&', '='][..]) {
         if segment.starts_with(':') {
             let param_name = segment[1..].to_string();
@@ -338,7 +360,7 @@ pub fn extract_path_parameters(url: &str) -> Vec<String> {
             }
         }
     }
-    
+
     params
 }
 
@@ -372,19 +394,22 @@ pub fn generate_auth_headers(auth: &AuthConfig) -> HashMap<String, String> {
     let mut headers = HashMap::new();
 
     match auth.auth_type {
-        AuthType::None => {},
+        AuthType::None => {}
         AuthType::Basic => {
             if let Some(basic) = &auth.basic {
                 let credentials = format!("{}:{}", basic.username, basic.password);
                 let encoded = general_purpose::STANDARD.encode(credentials.as_bytes());
                 headers.insert("Authorization".to_string(), format!("Basic {}", encoded));
             }
-        },
+        }
         AuthType::Bearer => {
             if let Some(bearer) = &auth.bearer {
-                headers.insert("Authorization".to_string(), format!("Bearer {}", bearer.token));
+                headers.insert(
+                    "Authorization".to_string(),
+                    format!("Bearer {}", bearer.token),
+                );
             }
-        },
+        }
     }
 
     headers
@@ -407,7 +432,10 @@ mod tests {
     #[test]
     fn test_replace_environment_variables() {
         let mut variables = HashMap::new();
-        variables.insert("base_url".to_string(), "https://api.example.com".to_string());
+        variables.insert(
+            "base_url".to_string(),
+            "https://api.example.com".to_string(),
+        );
         variables.insert("token".to_string(), "abc123".to_string());
 
         let input = "{{base_url}}/users?token={{token}}";

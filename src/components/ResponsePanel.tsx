@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Tab } from "../store";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -20,69 +20,82 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
   const [copied, setCopied] = useState(false);
   const [highlightedBody, setHighlightedBody] = useState<string>("");
   const [isHighlighting, setIsHighlighting] = useState(false);
-  const [viewMode, setViewMode] = useState<"pretty" | "raw" | "highlighted">(
-    "pretty",
-  );
+  const [viewMode, setViewMode] = useState<"pretty" | "raw">("pretty");
 
   const response = tab.response;
 
   // Utility function to format JSON with proper line breaks
   const formatJsonForDisplay = (jsonString: string): string => {
     try {
-      const parsed = JSON.parse(jsonString);
+      const trimmed = jsonString.trim();
+      const parsed = JSON.parse(trimmed);
       return JSON.stringify(parsed, null, 2);
-    } catch {
+    } catch (e) {
       return jsonString;
     }
   };
 
-  // Check if content is JSON
-  const isJsonContent = (content: string, contentType?: string): boolean => {
-    if (contentType?.includes("application/json")) return true;
-    if (contentType?.includes("application/vnd.api+json")) return true;
-
-    try {
-      JSON.parse(content.trim());
-      return true;
-    } catch {
-      return false;
+  const prettyBody = useMemo(() => {
+    if (!response?.body) {
+      return "";
     }
-  };
+
+    if (response.formatted_body && response.formatted_body.trim().length > 0) {
+      return response.formatted_body;
+    }
+
+    return formatJsonForDisplay(response.body);
+  }, [response?.body, response?.formatted_body]);
 
   useEffect(() => {
-    const highlightResponse = async () => {
-      if (response?.body && response.body.trim()) {
-        setIsHighlighting(true);
-        try {
-          // Check if response already has highlighted body
-          if (response.highlighted_body) {
-            setHighlightedBody(response.highlighted_body);
-          } else {
-            // Get content type from headers
-            const contentType =
-              response.headers["content-type"] ||
-              response.headers["Content-Type"] ||
-              undefined;
+    let cancelled = false;
 
-            const highlighted = await invoke<string>("highlight_response", {
-              content: response.body,
-              contentType,
-            });
-            setHighlightedBody(highlighted);
-          }
-        } catch (error) {
-          console.error("Failed to highlight response:", error);
+    const highlightResponse = async () => {
+      if (!response?.body || !response.body.trim()) {
+        setHighlightedBody("");
+        setIsHighlighting(false);
+        return;
+      }
+
+      setIsHighlighting(true);
+
+      try {
+        const contentType =
+          response.content_type ||
+          response.headers["content-type"] ||
+          response.headers["Content-Type"] ||
+          undefined;
+
+        const contentToHighlight =
+          prettyBody && prettyBody.trim().length > 0
+            ? prettyBody
+            : response.body;
+
+        const highlighted = await invoke<string>("highlight_response", {
+          content: contentToHighlight,
+          content_type: contentType,
+        });
+
+        if (!cancelled) {
+          setHighlightedBody(highlighted);
+        }
+      } catch (error) {
+        if (!cancelled) {
           setHighlightedBody("");
-        } finally {
+        }
+      } finally {
+        if (!cancelled) {
           setIsHighlighting(false);
         }
-      } else {
-        setHighlightedBody("");
       }
     };
 
     highlightResponse();
-  }, [response?.body, response?.headers]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prettyBody, response?.body, response?.headers, response?.content_type]);
 
   const getStatusColor = (status: number) => {
     if (status >= 200 && status < 300) return "text-green-600 bg-green-50";
@@ -277,26 +290,18 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
                 <div className="space-y-4">
                   {/* View Toggle */}
                   <div className="flex items-center space-x-4 mb-4">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mr-2">
+                      View:
+                    </div>
                     <button
                       onClick={() => setViewMode("pretty")}
-                      className={`px-3 py-1 text-sm font-medium rounded ${
+                      className={`px-3 py-1 text-sm font-medium rounded border-2 ${
                         viewMode === "pretty"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-500"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-transparent"
                       }`}
                     >
-                      Pretty
-                    </button>
-                    <button
-                      onClick={() => setViewMode("highlighted")}
-                      className={`px-3 py-1 text-sm font-medium rounded ${
-                        viewMode === "highlighted"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                      }`}
-                      disabled={isHighlighting || !highlightedBody}
-                    >
-                      Highlighted
+                      Pretty {viewMode === "pretty"}
                       {isHighlighting && (
                         <span className="ml-1 inline-block animate-spin">
                           ⟳
@@ -305,81 +310,55 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
                     </button>
                     <button
                       onClick={() => setViewMode("raw")}
-                      className={`px-3 py-1 text-sm font-medium rounded ${
+                      className={`px-3 py-1 text-sm font-medium rounded border-2 ${
                         viewMode === "raw"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-500"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-transparent"
                       }`}
                     >
-                      Raw
+                      Raw {viewMode === "raw"}
                     </button>
                   </div>
 
                   {/* Content Display */}
                   {viewMode === "pretty" && (
                     <div className="space-y-4">
-                      {/* Formatted Body */}
-                      {response.formatted_body && (
-                        <div>
-                          <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body json-response dark:text-gray-100">
-                            {isJsonContent(
-                              response.formatted_body,
-                              response.content_type,
-                            )
-                              ? formatJsonForDisplay(response.formatted_body)
-                              : response.formatted_body}
-                          </pre>
-                        </div>
-                      )}
-
-                      {/* Pretty Body (fallback if no formatted body) */}
-                      {!response.formatted_body && (
-                        <div>
-                          <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body json-response dark:text-gray-100">
-                            {isJsonContent(response.body, response.content_type)
-                              ? formatJsonForDisplay(response.body)
-                              : response.body}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {viewMode === "raw" && (
-                    <div>
-                      <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body text-sm font-mono whitespace-pre-wrap dark:text-gray-100">
-                        {response.body}
-                      </pre>
-                    </div>
-                  )}
-
-                  {viewMode === "highlighted" && (
-                    <div>
-                      {/* Syntax Highlighted Body */}
-                      {isHighlighting ? (
-                        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 text-center">
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-2"></div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Highlighting syntax...
-                          </p>
-                        </div>
-                      ) : highlightedBody ? (
-                        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4">
-                          <div
+                      {/* Always show formatted content, with syntax highlighting if available */}
+                      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                        {isHighlighting ? (
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-2"></div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Formatting response...
+                            </p>
+                          </div>
+                        ) : highlightedBody ? (
+                          <pre
                             className="highlighted-content json-response response-body text-sm"
+                            style={{
+                              fontFamily: "monospace",
+                              overflowX: "auto",
+                              margin: 0,
+                              padding: 0,
+                              background: "transparent",
+                            }}
                             dangerouslySetInnerHTML={{
                               __html: highlightedBody,
                             }}
                           />
-                        </div>
-                      ) : (
-                        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 text-center">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Syntax highlighting not available
-                          </p>
-                        </div>
-                      )}
+                        ) : (
+                          <pre className="text-sm font-mono whitespace-pre-wrap dark:text-gray-100">
+                            {prettyBody}
+                          </pre>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  {viewMode === "raw" && (
+                    <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body text-sm font-mono whitespace-pre-wrap dark:text-gray-100">
+                      {response.body}
+                    </pre>
                   )}
                 </div>
               ) : (

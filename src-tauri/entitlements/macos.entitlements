@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Allow app to access files/folders selected by user via file dialogs -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+
+    <!-- Allow reading files from user-selected locations -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Enable network access for HTTP requests -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Allow outgoing network connections -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Disable app sandbox for development (enable for production) -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!-- Alternative: If using app sandbox, enable these instead -->
+    <!--
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
+
+    <key>com.apple.security.files.bookmarks.document-scope</key>
+    <true/>
+    -->
+</dict>
+</plist>

@@ -4,3 +4,4 @@ target/
 *.log
 gen
 geni_db
+dist
