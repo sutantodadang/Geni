@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Plus, Trash2, Upload, File } from "lucide-react";
+import { Plus, Trash2, Upload, File, X } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { FormDataField } from "../store";
 
 interface FormDataRow {
@@ -68,34 +69,23 @@ const FormDataEditor: React.FC<FormDataEditorProps> = ({ value, onChange }) => {
     updateParent(newRows);
   };
 
-  const handleFileSelect = (index: number) => {
-    // Create a hidden file input
-    const input = document.createElement("input");
-    input.type = "file";
-    input.style.display = "none";
+  const handleFileSelect = async (index: number) => {
+    try {
+      // Use Tauri's native file dialog to get absolute file path
+      const selected = await open({
+        multiple: false,
+        title: "Select a file",
+      });
 
-    input.onchange = (e) => {
-      const target = e.target as HTMLInputElement;
-      const file = target.files?.[0];
-
-      if (file) {
-        // In Tauri, we get the file path
-        // For web compatibility, we use the file name
-        const filePath = (file as any).path || file.name;
+      if (selected && typeof selected === "string") {
+        // Update the row with the absolute file path
         updateRow(index, {
-          field: { File: { path: filePath } },
+          field: { File: { path: selected } },
         });
       }
-
-      document.body.removeChild(input);
-    };
-
-    input.oncancel = () => {
-      document.body.removeChild(input);
-    };
-
-    document.body.appendChild(input);
-    input.click();
+    } catch (error) {
+      console.error("Failed to select file:", error);
+    }
   };
 
   const getFieldValue = (field: FormDataField): string => {
@@ -138,103 +128,149 @@ const FormDataEditor: React.FC<FormDataEditorProps> = ({ value, onChange }) => {
           </p>
         </div>
       ) : (
-        <div className="space-y-2 items-center">
+        <div className="space-y-2">
           {rows.map((row, index) => (
             <div
               key={index}
-              className={`flex items-center space-x-2 p-2 rounded-md border justify-between ${
+              className={`rounded-md border ${
                 row.enabled
                   ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600"
                   : "bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-700"
               }`}
             >
-              {/* Enabled Checkbox */}
-              <div>
-                <input
-                  type="checkbox"
-                  checked={row.enabled}
-                  onChange={() => toggleRowEnabled(index)}
-                  className="form-checkbox h-4 w-4 text-blue-600 rounded"
-                />
-              </div>
-
-              {/* Key Input */}
-              <div className="flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={row.key}
-                  onChange={(e) => updateRow(index, { key: e.target.value })}
-                  className="w-full form-input text-sm p-1"
-                  placeholder="Field name"
-                  disabled={!row.enabled}
-                />
-              </div>
-
-              {/* Type Selector */}
-              <div className="w-24">
-                <select
-                  value={getFieldType(row.field)}
-                  onChange={(e) => {
-                    const newType = e.target.value as "text" | "file";
-                    if (newType === "text") {
-                      updateRow(index, { field: { Text: { value: "" } } });
-                    } else {
-                      updateRow(index, { field: { File: { path: "" } } });
-                    }
-                  }}
-                  className="w-full form-input text-sm p-1"
-                  disabled={!row.enabled}
-                >
-                  <option value="text">Text</option>
-                  <option value="file">File</option>
-                </select>
-              </div>
-
-              {/* Value Input */}
-              <div className="flex-1 min-w-0">
-                {getFieldType(row.field) === "text" ? (
+              {/* Row Layout */}
+              <div className="flex items-start gap-2 p-2">
+                {/* Enabled Checkbox */}
+                <div className="pt-2">
                   <input
-                    type="text"
-                    value={getFieldValue(row.field)}
-                    onChange={(e) =>
-                      updateRow(index, {
-                        field: { Text: { value: e.target.value } },
-                      })
-                    }
-                    className="w-full form-input text-sm p-1"
-                    placeholder="Field value"
-                    disabled={!row.enabled}
+                    type="checkbox"
+                    checked={row.enabled}
+                    onChange={() => toggleRowEnabled(index)}
+                    className="form-checkbox h-4 w-4 text-blue-600 rounded"
                   />
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <div className="flex-1 flex items-center space-x-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm">
-                      <File className="h-4 w-4 text-gray-400" />
-                      <span className="flex-1 truncate text-gray-700 dark:text-gray-300">
-                        {getFieldValue(row.field)
-                          ? getFileName(getFieldValue(row.field))
-                          : "No file selected"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleFileSelect(index)}
-                      disabled={!row.enabled}
-                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded-md flex items-center space-x-1"
-                    >
-                      <Upload className="h-4 w-4" />
-                      <span>Browse</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                </div>
 
-              {/* Delete Button */}
-              <button
-                onClick={() => removeRow(index)}
-                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                title="Remove field"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+                {/* Content Area */}
+                <div className="flex-1 min-w-0 space-y-2">
+                  {/* Key and Type Row */}
+                  <div className="flex gap-2">
+                    {/* Key Input */}
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={row.key}
+                        onChange={(e) =>
+                          updateRow(index, { key: e.target.value })
+                        }
+                        className="w-full form-input text-sm px-2 py-1.5"
+                        placeholder="Field name"
+                        disabled={!row.enabled}
+                      />
+                    </div>
+
+                    {/* Type Selector */}
+                    <div className="w-24 shrink-0">
+                      <select
+                        value={getFieldType(row.field)}
+                        onChange={(e) => {
+                          const newType = e.target.value as "text" | "file";
+                          if (newType === "text") {
+                            updateRow(index, {
+                              field: { Text: { value: "" } },
+                            });
+                          } else {
+                            updateRow(index, { field: { File: { path: "" } } });
+                          }
+                        }}
+                        className="w-full form-input text-sm px-2 py-1.5"
+                        disabled={!row.enabled}
+                      >
+                        <option value="text">Text</option>
+                        <option value="file">File</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Value Input Row */}
+                  <div>
+                    {getFieldType(row.field) === "text" ? (
+                      <input
+                        type="text"
+                        value={getFieldValue(row.field)}
+                        onChange={(e) =>
+                          updateRow(index, {
+                            field: { Text: { value: e.target.value } },
+                          })
+                        }
+                        className="w-full form-input text-sm px-2 py-1.5"
+                        placeholder="Field value"
+                        disabled={!row.enabled}
+                      />
+                    ) : (
+                      <div className="space-y-1">
+                        {/* File Display */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
+                            <File className="h-4 w-4 text-gray-400 shrink-0" />
+                            <span
+                              className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate"
+                              title={
+                                getFieldValue(row.field) || "No file selected"
+                              }
+                            >
+                              {getFieldValue(row.field)
+                                ? getFileName(getFieldValue(row.field))
+                                : "No file selected"}
+                            </span>
+                            {getFieldValue(row.field) && (
+                              <button
+                                onClick={() =>
+                                  updateRow(index, {
+                                    field: { File: { path: "" } },
+                                  })
+                                }
+                                disabled={!row.enabled}
+                                className="shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                title="Clear file"
+                              >
+                                <X className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                              </button>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleFileSelect(index)}
+                            disabled={!row.enabled}
+                            className="shrink-0 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-md flex items-center gap-1.5 transition-colors"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            <span className="font-medium">Browse</span>
+                          </button>
+                        </div>
+                        {/* File Path Tooltip (shown when file is selected) */}
+                        {getFieldValue(row.field) && (
+                          <div
+                            className="text-xs text-gray-500 dark:text-gray-400 px-1 truncate"
+                            title={getFieldValue(row.field)}
+                          >
+                            Path: {getFieldValue(row.field)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Delete Button */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => removeRow(index)}
+                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                    title="Remove field"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>

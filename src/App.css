@@ -493,13 +493,22 @@
         overflow-x: auto;
         overflow-y: visible;
         max-width: 100%;
-        word-break: break-word;
-        white-space: pre-wrap;
+        line-height: 1.5;
     }
 
-    .highlighted-content * {
-        max-width: 100% !important;
-        word-break: break-word !important;
-        white-space: pre-wrap !important;
+    /* Ensure syntect HTML renders properly */
+    .highlighted-content pre {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        font-family: monospace !important;
+        white-space: pre !important;
+        overflow-x: visible !important;
+    }
+
+    /* Preserve formatting for syntax-highlighted spans */
+    .highlighted-content span {
+        white-space: pre !important;
     }
 }
