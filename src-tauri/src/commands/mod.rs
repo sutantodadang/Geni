@@ -1,12 +1,12 @@
-use tauri::State;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tauri::State;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::db::Database;
-use crate::http::{HttpClient, replace_environment_variables, replace_path_parameters};
+use crate::http::{replace_environment_variables, replace_path_parameters, HttpClient};
 use crate::models::*;
 use crate::sync::SyncClient;
 
@@ -33,7 +33,7 @@ pub async fn send_request(
 
     // Replace path parameters first (e.g., :user_id -> 123)
     let url_with_path = replace_path_parameters(&payload.url, &payload.path_params);
-    
+
     // Then replace environment variables in URL
     let url = replace_environment_variables(&url_with_path, &env_vars);
 
@@ -48,7 +48,10 @@ pub async fn send_request(
     // Replace environment variables in body
     let body = if let Some(ref body) = payload.body {
         Some(match body {
-            RequestBody::Raw { content, content_type } => RequestBody::Raw {
+            RequestBody::Raw {
+                content,
+                content_type,
+            } => RequestBody::Raw {
                 content: replace_environment_variables(content, &env_vars),
                 content_type: replace_environment_variables(content_type, &env_vars),
             },
@@ -58,16 +61,14 @@ pub async fn send_request(
                 let replaced_value: serde_json::Value = serde_json::from_str(&replaced_str)
                     .map_err(|e| format!("Invalid JSON after variable replacement: {}", e))?;
                 RequestBody::Json(replaced_value)
-            },
+            }
             RequestBody::FormData(form) => {
                 let mut replaced_form = HashMap::new();
                 for (key, field) in form {
                     let replaced_key = replace_environment_variables(key, &env_vars);
                     let replaced_field = match field {
-                        FormDataField::Text { value } => {
-                            FormDataField::Text {
-                                value: replace_environment_variables(value, &env_vars),
-                            }
+                        FormDataField::Text { value } => FormDataField::Text {
+                            value: replace_environment_variables(value, &env_vars),
                         },
                         FormDataField::File { path } => {
                             // Replace environment variables in file path
@@ -79,7 +80,7 @@ pub async fn send_request(
                     replaced_form.insert(replaced_key, replaced_field);
                 }
                 RequestBody::FormData(replaced_form)
-            },
+            }
             RequestBody::UrlEncoded(form) => {
                 let mut replaced_form = HashMap::new();
                 for (key, value) in form {
@@ -88,7 +89,7 @@ pub async fn send_request(
                     replaced_form.insert(replaced_key, replaced_value);
                 }
                 RequestBody::UrlEncoded(replaced_form)
-            },
+            }
         })
     } else {
         None
@@ -172,10 +173,7 @@ pub async fn get_collections(state: State<'_, AppState>) -> Result<Vec<Collectio
 }
 
 #[tauri::command]
-pub async fn delete_collection(
-    id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_collection(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     state
         .db
@@ -302,18 +300,11 @@ pub async fn get_requests(
         None
     };
 
-    state
-        .db
-        .get_requests(uuid)
-        .await
-        .map_err(|e| e.to_string())
+    state.db.get_requests(uuid).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn delete_request(
-    id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_request(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     state
         .db
@@ -375,11 +366,7 @@ pub async fn create_environment(
 
 #[tauri::command]
 pub async fn get_environments(state: State<'_, AppState>) -> Result<Vec<Environment>, String> {
-    state
-        .db
-        .get_environments()
-        .await
-        .map_err(|e| e.to_string())
+    state.db.get_environments().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -427,17 +414,22 @@ pub async fn update_environment(
 }
 
 #[tauri::command]
-pub async fn delete_environment(
-    id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_environment(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
 
     // If this environment is active, deactivate it first
-    let active_env = state.db.get_active_environment().await.map_err(|e| e.to_string())?;
+    let active_env = state
+        .db
+        .get_active_environment()
+        .await
+        .map_err(|e| e.to_string())?;
     if let Some(active) = active_env {
         if active.id == uuid {
-            state.db.set_active_environment(None).await.map_err(|e| e.to_string())?;
+            state
+                .db
+                .set_active_environment(None)
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
 
@@ -454,30 +446,21 @@ pub async fn get_request_history(
     limit: Option<i32>,
     state: State<'_, AppState>,
 ) -> Result<Vec<RequestHistory>, String> {
-    state
-        .db
-        .get_history(limit)
-        .await
-        .map_err(|e| e.to_string())
+    state.db.get_history(limit).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn clear_request_history(state: State<'_, AppState>) -> Result<(), String> {
-    state
-        .db
-        .clear_history()
-        .await
-        .map_err(|e| e.to_string())
+    state.db.clear_history().await.map_err(|e| e.to_string())
 }
 
 // Utility commands
 #[tauri::command]
 pub async fn format_json(content: String) -> Result<String, String> {
-    let value: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid JSON: {}", e))?;
 
-    serde_json::to_string_pretty(&value)
-        .map_err(|e| format!("Failed to format JSON: {}", e))
+    serde_json::to_string_pretty(&value).map_err(|e| format!("Failed to format JSON: {}", e))
 }
 
 #[tauri::command]
@@ -509,7 +492,9 @@ pub async fn highlight_response(
             "html"
         } else if ct_lower.contains("text/css") {
             "css"
-        } else if ct_lower.contains("application/javascript") || ct_lower.contains("text/javascript") {
+        } else if ct_lower.contains("application/javascript")
+            || ct_lower.contains("text/javascript")
+        {
             "javascript"
         } else {
             "txt"
@@ -538,7 +523,11 @@ pub async fn export_collection(
     let uuid = Uuid::parse_str(&collection_id).map_err(|e| e.to_string())?;
 
     // Get collection
-    let collections = state.db.get_collections().await.map_err(|e| e.to_string())?;
+    let collections = state
+        .db
+        .get_collections()
+        .await
+        .map_err(|e| e.to_string())?;
     let collection = collections
         .into_iter()
         .find(|c| c.id == uuid)
@@ -641,7 +630,8 @@ pub async fn import_postman_collection(
         })?;
 
     // Convert to Geni format
-    let (mut collections, requests) = crate::postman::convert_postman_collection(postman_collection);
+    let (mut collections, requests) =
+        crate::postman::convert_postman_collection(postman_collection);
 
     // Mark the root collection as imported
     if let Some(root_collection) = collections.first_mut() {
@@ -686,10 +676,10 @@ pub async fn initialize_sync(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     use crate::sync::{ProviderConfig, SyncProvider};
-    
+
     let sync_provider = SyncProvider::from_str(&provider)
         .ok_or_else(|| format!("Invalid provider: {}", provider))?;
-    
+
     let config = ProviderConfig {
         provider: sync_provider.clone(),
         api_server_url,
@@ -700,28 +690,34 @@ pub async fn initialize_sync(
         google_client_secret,
         google_redirect_uri,
     };
-    
-    let new_client = SyncClient::new(config.clone())
-        .map_err(|e| e.to_string())?;
-    
+
+    let new_client = SyncClient::new(config.clone()).map_err(|e| e.to_string())?;
+
     // Auto-create schema for Supabase if needed
     if sync_provider == SyncProvider::Supabase {
-        new_client.ensure_schema().await.map_err(|e| e.to_string())?;
+        new_client
+            .ensure_schema()
+            .await
+            .map_err(|e| e.to_string())?;
     }
-    
+
     let mut client = state.sync_client.lock().await;
     *client = new_client;
-    
+
     // Save config to database
     let config_json = config.to_json().map_err(|e| e.to_string())?;
-    state.db.save_sync_config(sync_provider.as_str(), &config_json)
+    state
+        .db
+        .save_sync_config(sync_provider.as_str(), &config_json)
         .await
         .map_err(|e| e.to_string())?;
-    
-    state.db.set_last_sync_provider(sync_provider.as_str())
+
+    state
+        .db
+        .set_last_sync_provider(sync_provider.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
@@ -729,34 +725,36 @@ pub async fn initialize_sync(
 #[tauri::command]
 pub async fn load_saved_sync_config(state: State<'_, AppState>) -> Result<Option<String>, String> {
     use crate::sync::ProviderConfig;
-    
+
     // Get last used provider
-    let provider = state.db.get_last_sync_provider()
+    let provider = state
+        .db
+        .get_last_sync_provider()
         .await
         .map_err(|e| e.to_string())?;
-    
+
     if let Some(provider_name) = provider {
         // Get config for that provider
-        let config_json = state.db.get_sync_config(&provider_name)
+        let config_json = state
+            .db
+            .get_sync_config(&provider_name)
             .await
             .map_err(|e| e.to_string())?;
-        
+
         if let Some(json) = config_json {
             // Initialize sync client with saved config
-            let config = ProviderConfig::from_json(&json)
-                .map_err(|e| e.to_string())?;
-            
-            let new_client = SyncClient::new(config)
-                .map_err(|e| e.to_string())?;
-            
+            let config = ProviderConfig::from_json(&json).map_err(|e| e.to_string())?;
+
+            let new_client = SyncClient::new(config).map_err(|e| e.to_string())?;
+
             let mut client = state.sync_client.lock().await;
             *client = new_client;
-            
+
             // Return the config JSON for the frontend
             return Ok(Some(json));
         }
     }
-    
+
     Ok(None)
 }
 
@@ -769,7 +767,8 @@ pub async fn api_server_sign_up(
     state: State<'_, AppState>,
 ) -> Result<TokenResponse, String> {
     let mut client = state.sync_client.lock().await;
-    client.api_server_sign_up(&email, &password, name)
+    client
+        .api_server_sign_up(&email, &password, name)
         .await
         .map_err(|e| e.to_string())
 }
@@ -781,7 +780,8 @@ pub async fn api_server_sign_in(
     state: State<'_, AppState>,
 ) -> Result<TokenResponse, String> {
     let mut client = state.sync_client.lock().await;
-    client.api_server_sign_in(&email, &password)
+    client
+        .api_server_sign_in(&email, &password)
         .await
         .map_err(|e| e.to_string())
 }
@@ -795,7 +795,8 @@ pub async fn supabase_sign_up(
     state: State<'_, AppState>,
 ) -> Result<TokenResponse, String> {
     let mut client = state.sync_client.lock().await;
-    client.supabase_sign_up(&email, &password, name)
+    client
+        .supabase_sign_up(&email, &password, name)
         .await
         .map_err(|e| e.to_string())
 }
@@ -807,7 +808,8 @@ pub async fn supabase_sign_in(
     state: State<'_, AppState>,
 ) -> Result<TokenResponse, String> {
     let mut client = state.sync_client.lock().await;
-    client.supabase_sign_in(&email, &password)
+    client
+        .supabase_sign_in(&email, &password)
         .await
         .map_err(|e| e.to_string())
 }
@@ -818,7 +820,8 @@ pub async fn google_drive_get_auth_url(
     state: State<'_, AppState>,
 ) -> Result<(String, String), String> {
     let client = state.sync_client.lock().await;
-    client.google_drive_generate_auth_url()
+    client
+        .google_drive_generate_auth_url()
         .map_err(|e| e.to_string())
 }
 
@@ -828,17 +831,17 @@ pub async fn google_drive_exchange_code(
     state: State<'_, AppState>,
 ) -> Result<TokenResponse, String> {
     let mut client = state.sync_client.lock().await;
-    client.google_drive_exchange_code(&code)
+    client
+        .google_drive_exchange_code(&code)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn google_drive_refresh_token(
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn google_drive_refresh_token(state: State<'_, AppState>) -> Result<(), String> {
     let mut client = state.sync_client.lock().await;
-    client.google_drive_refresh_token()
+    client
+        .google_drive_refresh_token()
         .await
         .map_err(|e| e.to_string())
 }
@@ -846,18 +849,20 @@ pub async fn google_drive_refresh_token(
 // Common auth commands
 #[tauri::command]
 pub async fn logout(state: State<'_, AppState>) -> Result<(), String> {
-    use crate::sync::{SyncClient, ProviderConfig, SyncProvider};
-    
+    use crate::sync::{ProviderConfig, SyncClient, SyncProvider};
+
     // Sign out from current provider
     let mut client = state.sync_client.lock().await;
     client.sign_out();
     drop(client); // Release the lock
-    
+
     // Clear all sync configuration from database
-    state.db.clear_sync_config()
+    state
+        .db
+        .clear_sync_config()
         .await
         .map_err(|e| e.to_string())?;
-    
+
     // Reset sync client to default (no provider)
     let default_config = ProviderConfig {
         provider: SyncProvider::ApiServer,
@@ -869,13 +874,12 @@ pub async fn logout(state: State<'_, AppState>) -> Result<(), String> {
         google_client_secret: None,
         google_redirect_uri: None,
     };
-    
-    let new_client = SyncClient::new(default_config)
-        .map_err(|e| e.to_string())?;
-    
+
+    let new_client = SyncClient::new(default_config).map_err(|e| e.to_string())?;
+
     let mut client = state.sync_client.lock().await;
     *client = new_client;
-    
+
     Ok(())
 }
 
@@ -885,7 +889,7 @@ pub async fn supabase_create_schema(state: State<'_, AppState>) -> Result<String
     let client = state.sync_client.lock().await;
     match client.ensure_schema().await {
         Ok(_) => Ok("Schema created successfully or already exists".to_string()),
-        Err(e) => Err(format!("Failed to create schema: {}", e))
+        Err(e) => Err(format!("Failed to create schema: {}", e)),
     }
 }
 
@@ -936,7 +940,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_collection(&collection)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_collection_synced(collection.id, cloud_id.clone(), collection.version)
@@ -948,7 +952,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_collection(&collection)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_collection_synced(collection.id, cloud_id, collection.version)
@@ -963,7 +967,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_request(&request)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_request_synced(request.id.unwrap(), cloud_id.clone(), request.version)
@@ -974,7 +978,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_request(&request)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_request_synced(request.id.unwrap(), cloud_id, request.version)
@@ -989,7 +993,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_environment(&environment)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_environment_synced(environment.id, cloud_id.clone(), environment.version)
@@ -1000,7 +1004,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
                 .push_environment(&environment)
                 .await
                 .map_err(|e| e.to_string())?;
-            
+
             state
                 .db
                 .mark_environment_synced(environment.id, cloud_id, environment.version)
@@ -1016,10 +1020,7 @@ pub async fn sync_push(state: State<'_, AppState>) -> Result<(), String> {
 pub async fn sync_pull(state: State<'_, AppState>) -> Result<(), String> {
     // Pull from cloud
     let client = state.sync_client.lock().await;
-    let pull_response = client
-        .pull_sync()
-        .await
-        .map_err(|e| e.to_string())?;
+    let pull_response = client.pull_sync().await.map_err(|e| e.to_string())?;
 
     drop(client); // Release lock before database operations
 

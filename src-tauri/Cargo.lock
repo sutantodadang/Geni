@@ -1295,12 +1295,13 @@ dependencies = [
 
 [[package]]
 name = "geni"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
  "chrono",
  "indexmap 2.12.0",
+ "mime_guess",
  "native-tls",
  "oauth2",
  "postgres-native-tls",
