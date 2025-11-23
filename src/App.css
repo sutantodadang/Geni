@@ -478,12 +478,15 @@
         overflow-x: hidden;
         overflow-y: auto;
         max-width: 100%;
+        height: 100%;
+        min-height: 0;
     }
 
     .response-panel-content pre {
         overflow-x: auto;
-        overflow-y: visible;
+        overflow-y: auto;
         max-width: 100%;
+        max-height: 100%;
         word-wrap: break-word;
         white-space: pre-wrap;
     }
@@ -491,8 +494,9 @@
     /* Fix for highlighted content container */
     .highlighted-content {
         overflow-x: auto;
-        overflow-y: visible;
+        overflow-y: auto;
         max-width: 100%;
+        max-height: 100%;
         line-height: 1.5;
     }
 

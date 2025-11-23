@@ -103,12 +103,6 @@ impl HttpClient {
                                         )
                                     })?;
 
-                                println!(
-                                    "Successfully read {} bytes from file: {}",
-                                    file_bytes.len(),
-                                    path
-                                );
-
                                 // Extract filename from path
                                 let filename = path_obj
                                     .file_name()
@@ -116,9 +110,18 @@ impl HttpClient {
                                     .unwrap_or("file")
                                     .to_string();
 
-                                // Create multipart part with file
-                                let part =
-                                    reqwest::multipart::Part::bytes(file_bytes).file_name(filename);
+                                // Detect MIME type from file extension
+                                let mime_type = mime_guess::from_path(path_obj)
+                                    .first_or_octet_stream()
+                                    .to_string();
+
+                                // Create multipart part with file and proper content type
+                                let part = reqwest::multipart::Part::bytes(file_bytes)
+                                    .file_name(filename)
+                                    .mime_str(&mime_type)
+                                    .unwrap_or_else(|_| {
+                                        reqwest::multipart::Part::bytes(vec![]).file_name("error")
+                                    });
 
                                 form_builder.part(key.clone(), part)
                             }

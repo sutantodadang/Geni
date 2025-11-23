@@ -1,7 +1,7 @@
-use sled::{Db, Tree};
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::Utc;
+use sled::{Db, Tree};
+use uuid::Uuid;
 
 use crate::models::*;
 
@@ -103,7 +103,10 @@ impl Database {
         Ok(())
     }
 
-    fn delete_collection_recursive(&self, id: Uuid) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {
+    fn delete_collection_recursive(
+        &self,
+        id: Uuid,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
             // First, find and delete all child collections
             let mut child_ids = Vec::new();
@@ -120,19 +123,19 @@ impl Database {
                 self.delete_collection_recursive(child_id).await?;
             }
 
-        // Delete all requests in this collection
-        let mut request_keys_to_remove = Vec::new();
-        for item in self.requests.iter() {
-            let (key, value) = item?;
-            let request: HttpRequest = serde_json::from_slice(&value)?;
-            if request.collection_id == Some(id) {
-                request_keys_to_remove.push(key);
+            // Delete all requests in this collection
+            let mut request_keys_to_remove = Vec::new();
+            for item in self.requests.iter() {
+                let (key, value) = item?;
+                let request: HttpRequest = serde_json::from_slice(&value)?;
+                if request.collection_id == Some(id) {
+                    request_keys_to_remove.push(key);
+                }
             }
-        }
 
-        for key in request_keys_to_remove {
-            self.requests.remove(key)?;
-        }
+            for key in request_keys_to_remove {
+                self.requests.remove(key)?;
+            }
 
             // Finally, delete this collection itself
             let key = id.to_string();
@@ -142,26 +145,34 @@ impl Database {
         })
     }
 
-    pub async fn move_collection(&self, collection_id: Uuid, new_parent_id: Option<Uuid>) -> Result<()> {
-            // Get the collection
-            let key = collection_id.to_string();
-            if let Some(value) = self.collections.get(&key)? {
-                let mut collection: Collection = serde_json::from_slice(&value)?;
+    pub async fn move_collection(
+        &self,
+        collection_id: Uuid,
+        new_parent_id: Option<Uuid>,
+    ) -> Result<()> {
+        // Get the collection
+        let key = collection_id.to_string();
+        if let Some(value) = self.collections.get(&key)? {
+            let mut collection: Collection = serde_json::from_slice(&value)?;
 
-                // Update the parent_id
-                collection.parent_id = new_parent_id;
-                collection.updated_at = Utc::now();
+            // Update the parent_id
+            collection.parent_id = new_parent_id;
+            collection.updated_at = Utc::now();
 
-                // Save back to database
-                let updated_value = serde_json::to_vec(&collection)?;
-                self.collections.insert(key, updated_value)?;
-                self.db.flush()?;
-            }
-
-            Ok(())
+            // Save back to database
+            let updated_value = serde_json::to_vec(&collection)?;
+            self.collections.insert(key, updated_value)?;
+            self.db.flush()?;
         }
 
-    pub async fn update_collection_auth(&self, collection_id: Uuid, auth: Option<AuthConfig>) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn update_collection_auth(
+        &self,
+        collection_id: Uuid,
+        auth: Option<AuthConfig>,
+    ) -> Result<()> {
         let key = collection_id.to_string();
         if let Some(value) = self.collections.get(&key)? {
             let mut collection: Collection = serde_json::from_slice(&value)?;
@@ -250,8 +261,12 @@ impl Database {
 
         // Sort by updated_at desc
         requests.sort_by(|a, b| {
-            let a_time = a.updated_at.unwrap_or_else(|| a.created_at.unwrap_or(Utc::now()));
-            let b_time = b.updated_at.unwrap_or_else(|| b.created_at.unwrap_or(Utc::now()));
+            let a_time = a
+                .updated_at
+                .unwrap_or_else(|| a.created_at.unwrap_or(Utc::now()));
+            let b_time = b
+                .updated_at
+                .unwrap_or_else(|| b.created_at.unwrap_or(Utc::now()));
             b_time.cmp(&a_time)
         });
 
@@ -284,7 +299,11 @@ impl Database {
         Ok(())
     }
 
-    pub async fn move_request_to_collection(&self, request_id: Uuid, new_collection_id: Option<Uuid>) -> Result<()> {
+    pub async fn move_request_to_collection(
+        &self,
+        request_id: Uuid,
+        new_collection_id: Option<Uuid>,
+    ) -> Result<()> {
         // Get the request
         let key = request_id.to_string();
         if let Some(value) = self.requests.get(&key)? {
@@ -380,7 +399,12 @@ impl Database {
         Ok(None)
     }
 
-    pub async fn update_environment(&self, id: Uuid, name: String, variables: std::collections::HashMap<String, String>) -> Result<Environment> {
+    pub async fn update_environment(
+        &self,
+        id: Uuid,
+        name: String,
+        variables: std::collections::HashMap<String, String>,
+    ) -> Result<Environment> {
         let key = id.to_string();
         if let Some(value) = self.environments.get(&key)? {
             let mut environment: Environment = serde_json::from_slice(&value)?;
@@ -444,7 +468,12 @@ impl Database {
     }
 
     // Sync operations
-    pub async fn mark_collection_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+    pub async fn mark_collection_synced(
+        &self,
+        id: Uuid,
+        cloud_id: String,
+        version: i64,
+    ) -> Result<()> {
         let key = id.to_string();
         if let Some(value) = self.collections.get(&key)? {
             let mut collection: Collection = serde_json::from_slice(&value)?;
@@ -459,7 +488,12 @@ impl Database {
         Ok(())
     }
 
-    pub async fn mark_request_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+    pub async fn mark_request_synced(
+        &self,
+        id: Uuid,
+        cloud_id: String,
+        version: i64,
+    ) -> Result<()> {
         let key = id.to_string();
         if let Some(value) = self.requests.get(&key)? {
             let mut request: HttpRequest = serde_json::from_slice(&value)?;
@@ -474,7 +508,12 @@ impl Database {
         Ok(())
     }
 
-    pub async fn mark_environment_synced(&self, id: Uuid, cloud_id: String, version: i64) -> Result<()> {
+    pub async fn mark_environment_synced(
+        &self,
+        id: Uuid,
+        cloud_id: String,
+        version: i64,
+    ) -> Result<()> {
         let key = id.to_string();
         if let Some(value) = self.environments.get(&key)? {
             let mut environment: Environment = serde_json::from_slice(&value)?;
@@ -533,22 +572,22 @@ impl Database {
 
     pub async fn merge_collection(&self, cloud_collection: Collection) -> Result<()> {
         // Check if collection exists locally
-        let existing = self.collections
-            .iter()
-            .find(|item| {
-                if let Ok((_, value)) = item {
-                    if let Ok(local) = serde_json::from_slice::<Collection>(value) {
-                        return local.cloud_id == cloud_collection.cloud_id;
-                    }
+        let existing = self.collections.iter().find(|item| {
+            if let Ok((_, value)) = item {
+                if let Ok(local) = serde_json::from_slice::<Collection>(value) {
+                    return local.cloud_id == cloud_collection.cloud_id;
                 }
-                false
-            });
+            }
+            false
+        });
 
         if let Some(Ok((key, value))) = existing {
             let mut local: Collection = serde_json::from_slice(&value)?;
 
             // Conflict resolution: use the latest updated_at
-            if cloud_collection.updated_at > local.updated_at || cloud_collection.version > local.version {
+            if cloud_collection.updated_at > local.updated_at
+                || cloud_collection.version > local.version
+            {
                 // Cloud is newer, update local
                 local.name = cloud_collection.name;
                 local.description = cloud_collection.description;
@@ -578,22 +617,24 @@ impl Database {
     }
 
     pub async fn merge_request(&self, cloud_request: HttpRequest) -> Result<()> {
-        let existing = self.requests
-            .iter()
-            .find(|item| {
-                if let Ok((_, value)) = item {
-                    if let Ok(local) = serde_json::from_slice::<HttpRequest>(value) {
-                        return local.cloud_id == cloud_request.cloud_id;
-                    }
+        let existing = self.requests.iter().find(|item| {
+            if let Ok((_, value)) = item {
+                if let Ok(local) = serde_json::from_slice::<HttpRequest>(value) {
+                    return local.cloud_id == cloud_request.cloud_id;
                 }
-                false
-            });
+            }
+            false
+        });
 
         if let Some(Ok((key, value))) = existing {
             let mut local: HttpRequest = serde_json::from_slice(&value)?;
 
-            let local_updated = local.updated_at.unwrap_or(local.created_at.unwrap_or(Utc::now()));
-            let cloud_updated = cloud_request.updated_at.unwrap_or(cloud_request.created_at.unwrap_or(Utc::now()));
+            let local_updated = local
+                .updated_at
+                .unwrap_or(local.created_at.unwrap_or(Utc::now()));
+            let cloud_updated = cloud_request
+                .updated_at
+                .unwrap_or(cloud_request.created_at.unwrap_or(Utc::now()));
 
             if cloud_updated > local_updated || cloud_request.version > local.version {
                 local.name = cloud_request.name;
@@ -625,21 +666,21 @@ impl Database {
     }
 
     pub async fn merge_environment(&self, cloud_environment: Environment) -> Result<()> {
-        let existing = self.environments
-            .iter()
-            .find(|item| {
-                if let Ok((_, value)) = item {
-                    if let Ok(local) = serde_json::from_slice::<Environment>(value) {
-                        return local.cloud_id == cloud_environment.cloud_id;
-                    }
+        let existing = self.environments.iter().find(|item| {
+            if let Ok((_, value)) = item {
+                if let Ok(local) = serde_json::from_slice::<Environment>(value) {
+                    return local.cloud_id == cloud_environment.cloud_id;
                 }
-                false
-            });
+            }
+            false
+        });
 
         if let Some(Ok((key, value))) = existing {
             let mut local: Environment = serde_json::from_slice(&value)?;
 
-            if cloud_environment.updated_at > local.updated_at || cloud_environment.version > local.version {
+            if cloud_environment.updated_at > local.updated_at
+                || cloud_environment.version > local.version
+            {
                 local.name = cloud_environment.name;
                 local.variables = cloud_environment.variables;
                 local.updated_at = cloud_environment.updated_at;
@@ -664,7 +705,7 @@ impl Database {
         self.db.flush()?;
         Ok(())
     }
-    
+
     // Config operations for cloud sync settings
     pub async fn save_sync_config(&self, provider: &str, config_json: &str) -> Result<()> {
         let key = format!("sync_provider_{}", provider);
@@ -672,45 +713,46 @@ impl Database {
         self.db.flush()?;
         Ok(())
     }
-    
+
     pub async fn get_sync_config(&self, provider: &str) -> Result<Option<String>> {
         let key = format!("sync_provider_{}", provider);
         match self.config.get(key)? {
             Some(bytes) => {
                 let config_str = String::from_utf8(bytes.to_vec())?;
                 Ok(Some(config_str))
-            },
+            }
             None => Ok(None),
         }
     }
-    
+
     pub async fn get_last_sync_provider(&self) -> Result<Option<String>> {
         match self.config.get("last_sync_provider")? {
             Some(bytes) => {
                 let provider = String::from_utf8(bytes.to_vec())?;
                 Ok(Some(provider))
-            },
+            }
             None => Ok(None),
         }
     }
-    
+
     pub async fn set_last_sync_provider(&self, provider: &str) -> Result<()> {
-        self.config.insert("last_sync_provider", provider.as_bytes())?;
+        self.config
+            .insert("last_sync_provider", provider.as_bytes())?;
         self.db.flush()?;
         Ok(())
     }
-    
+
     pub async fn clear_sync_config(&self) -> Result<()> {
         // Remove last sync provider
         self.config.remove("last_sync_provider")?;
-        
+
         // Remove all provider configs
         let providers = ["api_server", "supabase", "google_drive"];
         for provider in &providers {
             let key = format!("sync_provider_{}", provider);
             self.config.remove(key)?;
         }
-        
+
         self.db.flush()?;
         Ok(())
     }

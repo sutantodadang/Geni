@@ -1,7 +1,7 @@
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
-use reqwest::Client;
 use crate::models::*;
+use anyhow::{anyhow, Result};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct ApiServerClient {
@@ -50,14 +50,20 @@ impl ApiServerClient {
         })
     }
 
-    pub async fn sign_up(&mut self, email: String, password: String, name: Option<String>) -> Result<TokenResponse> {
+    pub async fn sign_up(
+        &mut self,
+        email: String,
+        password: String,
+        name: Option<String>,
+    ) -> Result<TokenResponse> {
         let request_body = RegisterRequest {
             email: email.clone(),
             password,
             name: name.clone(),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/auth/register", self.base_url))
             .json(&request_body)
             .send()
@@ -86,12 +92,10 @@ impl ApiServerClient {
     }
 
     pub async fn sign_in(&mut self, email: String, password: String) -> Result<TokenResponse> {
-        let request_body = LoginRequest {
-            email,
-            password,
-        };
+        let request_body = LoginRequest { email, password };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/auth/login", self.base_url))
             .json(&request_body)
             .send()
@@ -138,14 +142,16 @@ impl ApiServerClient {
     }
 
     async fn ensure_authenticated(&self) -> Result<String> {
-        self.access_token.clone()
+        self.access_token
+            .clone()
             .ok_or_else(|| anyhow!("Not authenticated"))
     }
 
     pub async fn create_collection(&self, collection: &Collection) -> Result<String> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/collections", self.base_url))
             .bearer_auth(&token)
             .json(collection)
@@ -164,7 +170,8 @@ impl ApiServerClient {
     pub async fn get_collections(&self) -> Result<Vec<Collection>> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&format!("{}/api/collections", self.base_url))
             .bearer_auth(&token)
             .send()
@@ -182,7 +189,8 @@ impl ApiServerClient {
     pub async fn update_collection(&self, cloud_id: &str, collection: &Collection) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .put(&format!("{}/api/collections/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .json(collection)
@@ -200,7 +208,8 @@ impl ApiServerClient {
     pub async fn delete_collection(&self, cloud_id: &str) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&format!("{}/api/collections/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .send()
@@ -217,7 +226,8 @@ impl ApiServerClient {
     pub async fn create_request(&self, request: &HttpRequest) -> Result<String> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/requests", self.base_url))
             .bearer_auth(&token)
             .json(request)
@@ -236,7 +246,8 @@ impl ApiServerClient {
     pub async fn get_requests(&self) -> Result<Vec<HttpRequest>> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&format!("{}/api/requests", self.base_url))
             .bearer_auth(&token)
             .send()
@@ -254,7 +265,8 @@ impl ApiServerClient {
     pub async fn update_request(&self, cloud_id: &str, request: &HttpRequest) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .put(&format!("{}/api/requests/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .json(request)
@@ -272,7 +284,8 @@ impl ApiServerClient {
     pub async fn delete_request(&self, cloud_id: &str) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&format!("{}/api/requests/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .send()
@@ -289,7 +302,8 @@ impl ApiServerClient {
     pub async fn create_environment(&self, environment: &Environment) -> Result<String> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/environments", self.base_url))
             .bearer_auth(&token)
             .json(environment)
@@ -308,7 +322,8 @@ impl ApiServerClient {
     pub async fn get_environments(&self) -> Result<Vec<Environment>> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&format!("{}/api/environments", self.base_url))
             .bearer_auth(&token)
             .send()
@@ -323,10 +338,15 @@ impl ApiServerClient {
         Ok(environments)
     }
 
-    pub async fn update_environment(&self, cloud_id: &str, environment: &Environment) -> Result<()> {
+    pub async fn update_environment(
+        &self,
+        cloud_id: &str,
+        environment: &Environment,
+    ) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .put(&format!("{}/api/environments/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .json(environment)
@@ -344,7 +364,8 @@ impl ApiServerClient {
     pub async fn delete_environment(&self, cloud_id: &str) -> Result<()> {
         let token = self.ensure_authenticated().await?;
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&format!("{}/api/environments/{}", self.base_url, cloud_id))
             .bearer_auth(&token)
             .send()

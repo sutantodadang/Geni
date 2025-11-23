@@ -196,9 +196,9 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
   const headerEntries = Object.entries(response.headers);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
       {/* Response Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Response
@@ -226,7 +226,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
         </div>
 
         {/* Status and Metrics */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 flex-wrap">
           <div
             className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
               response.status,
@@ -256,8 +256,8 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
       </div>
 
       {/* Response Tabs */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <nav className="flex space-x-8 px-4">
             <button
               onClick={() => setActiveTab("body")}
@@ -283,7 +283,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar response-panel-content">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar response-panel-content min-h-0">
           {activeTab === "body" && (
             <div className="p-4">
               {response.body ? (
@@ -324,7 +324,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
                   {viewMode === "pretty" && (
                     <div className="space-y-4">
                       {/* Always show formatted content, with syntax highlighting if available */}
-                      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 overflow-auto">
                         {isHighlighting ? (
                           <div className="text-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-2"></div>
@@ -356,7 +356,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
                   )}
 
                   {viewMode === "raw" && (
-                    <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body text-sm font-mono whitespace-pre-wrap dark:text-gray-100">
+                    <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-4 response-body text-sm font-mono whitespace-pre-wrap dark:text-gray-100 overflow-auto">
                       {response.body}
                     </pre>
                   )}
@@ -380,19 +380,19 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
                       key={index}
                       className="flex items-start space-x-4 py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                     >
-                      <div className="flex-1">
-                        <div className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                           {key}
                         </div>
                       </div>
-                      <div className="flex-2">
+                      <div className="flex-2 min-w-0">
                         <div className="font-mono text-sm text-gray-700 dark:text-gray-300 break-all">
                           {value}
                         </div>
                       </div>
                       <button
                         onClick={() => copyToClipboard(`${key}: ${value}`)}
-                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded flex-shrink-0"
                         title="Copy header"
                       >
                         <Copy className="h-3 w-3" />

@@ -1,10 +1,10 @@
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
-use reqwest::Client;
-use postgrest::Postgrest;
+use crate::models::*;
+use anyhow::{anyhow, Result};
 use native_tls;
 use postgres_native_tls;
-use crate::models::*;
+use postgrest::Postgrest;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct SupabaseClient {
@@ -62,7 +62,7 @@ impl SupabaseClient {
     /// Auto-create database schema if tables don't exist
     pub async fn ensure_schema(&self) -> Result<()> {
         println!("🔍 Checking if database schema exists...");
-        
+
         // If we have a database URI, always try to create schema (idempotent)
         // This is more reliable than checking via PostgREST with anon key
         if let Some(db_uri) = &self.db_uri {
@@ -73,14 +73,24 @@ impl SupabaseClient {
         // No database URI - check if tables exist via PostgREST
         // This is less reliable but it's all we can do without direct DB access
         println!("⚠️ No Database URI - checking via PostgREST API (less reliable)");
-        match self.postgrest.from("collections").select("id").limit(1).execute().await {
+        match self
+            .postgrest
+            .from("collections")
+            .select("id")
+            .limit(1)
+            .execute()
+            .await
+        {
             Ok(response) => {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
                 println!("📊 PostgREST response: status={}, body={}", status, body);
-                
+
                 // Check if it's actually a valid response with data structure
-                if body.contains("PGRST") || body.contains("relation") || body.contains("does not exist") {
+                if body.contains("PGRST")
+                    || body.contains("relation")
+                    || body.contains("does not exist")
+                {
                     println!("❌ Tables don't exist - error response detected");
                     // Return manual instructions
                     let schema_sql = Self::get_schema_sql();
@@ -98,17 +108,20 @@ impl SupabaseClient {
                         schema_sql
                     ));
                 }
-                
+
                 println!("✅ Schema appears to exist (or RLS is hiding the error)");
                 Ok(())
-            },
+            }
             Err(e) => {
                 let err_msg = e.to_string();
                 println!("❌ Schema check error: {}", err_msg);
-                
+
                 // Check if it's a "table not found" error
-                if err_msg.contains("PGRST204") || err_msg.contains("PGRST205") || 
-                   err_msg.contains("relation") || err_msg.contains("does not exist") {
+                if err_msg.contains("PGRST204")
+                    || err_msg.contains("PGRST205")
+                    || err_msg.contains("relation")
+                    || err_msg.contains("does not exist")
+                {
                     println!("📋 Tables don't exist, returning manual instructions");
                     let schema_sql = Self::get_schema_sql();
                     return Err(anyhow!(
@@ -125,7 +138,7 @@ impl SupabaseClient {
                         schema_sql
                     ));
                 }
-                
+
                 // Some other error - return it
                 Err(anyhow!("Failed to check schema: {}", err_msg))
             }
@@ -226,7 +239,7 @@ CREATE TRIGGER update_environments_updated_at
 
     async fn create_schema_with_postgres(&self, db_uri: &str) -> Result<()> {
         println!("🔄 Attempting to create schema with PostgreSQL URI...");
-        
+
         // Create TLS connector for Supabase with proper settings
         let connector = native_tls::TlsConnector::builder()
             .danger_accept_invalid_certs(true) // Supabase uses self-signed certs in some regions
@@ -251,14 +264,21 @@ CREATE TRIGGER update_environments_updated_at
         println!("📝 Executing schema SQL...");
         // Execute the schema SQL
         let schema_sql = Self::get_schema_sql();
-        client.batch_execute(schema_sql).await
+        client
+            .batch_execute(schema_sql)
+            .await
             .map_err(|e| anyhow!("Failed to create schema: {}", e))?;
 
         println!("✅ Schema created successfully!");
         Ok(())
     }
 
-    pub async fn sign_up(&mut self, email: String, password: String, name: Option<String>) -> Result<TokenResponse> {
+    pub async fn sign_up(
+        &mut self,
+        email: String,
+        password: String,
+        name: Option<String>,
+    ) -> Result<TokenResponse> {
         let mut body = serde_json::json!({
             "email": email,
             "password": password,
@@ -270,7 +290,8 @@ CREATE TRIGGER update_environments_updated_at
             });
         }
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/auth/v1/signup", self.url))
             .header("apikey", &self.api_key)
             .json(&body)
@@ -283,9 +304,13 @@ CREATE TRIGGER update_environments_updated_at
         }
 
         let auth_response: AuthResponse = response.json().await?;
-        
-        let user_name = auth_response.user.user_metadata.clone().and_then(|m| m.name);
-        
+
+        let user_name = auth_response
+            .user
+            .user_metadata
+            .clone()
+            .and_then(|m| m.name);
+
         self.access_token = Some(auth_response.access_token.clone());
         self.user_info = Some(User {
             id: auth_response.user.id.clone(),
@@ -310,7 +335,8 @@ CREATE TRIGGER update_environments_updated_at
             "password": password,
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/auth/v1/token?grant_type=password", self.url))
             .header("apikey", &self.api_key)
             .json(&body)
@@ -323,9 +349,13 @@ CREATE TRIGGER update_environments_updated_at
         }
 
         let auth_response: AuthResponse = response.json().await?;
-        
-        let user_name = auth_response.user.user_metadata.clone().and_then(|m| m.name);
-        
+
+        let user_name = auth_response
+            .user
+            .user_metadata
+            .clone()
+            .and_then(|m| m.name);
+
         self.access_token = Some(auth_response.access_token.clone());
         self.user_info = Some(User {
             id: auth_response.user.id.clone(),
@@ -373,76 +403,84 @@ CREATE TRIGGER update_environments_updated_at
     fn needs_auth_override(&self) -> Option<String> {
         // Only override auth if we have a user access_token (from sign_in/sign_up)
         // If using API key directly, the headers are already set in postgrest client
-        self.access_token.as_ref().map(|token| format!("Bearer {}", token))
+        self.access_token
+            .as_ref()
+            .map(|token| format!("Bearer {}", token))
     }
 
     // CRUD operations for collections
     pub async fn create_collection(&self, collection: &Collection) -> Result<String> {
         // PostgREST insert expects an array, not a single object
         let items = vec![collection];
-        
-        let mut builder = self.postgrest
+
+        let mut builder = self
+            .postgrest
             .from("collections")
             .insert(serde_json::to_string(&items)?);
-        
+
         // Only override auth if we have a user access token
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;
-        
+
         #[derive(Deserialize)]
         struct IdResponse {
             id: String,
         }
 
-        let data: Vec<IdResponse> = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("Failed to parse collection response: {}. Response text: {}", e, text))?;
+        let data: Vec<IdResponse> = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "Failed to parse collection response: {}. Response text: {}",
+                e,
+                text
+            )
+        })?;
         data.first()
             .map(|r| r.id.clone())
             .ok_or_else(|| anyhow!("No ID returned"))
     }
 
     pub async fn update_collection(&self, cloud_id: &str, collection: &Collection) -> Result<()> {
-        let mut builder = self.postgrest
+        let mut builder = self
+            .postgrest
             .from("collections")
             .eq("id", cloud_id)
             .update(serde_json::to_string(collection)?);
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn delete_collection(&self, cloud_id: &str) -> Result<()> {
-        let mut builder = self.postgrest
+        let mut builder = self
+            .postgrest
             .from("collections")
             .eq("id", cloud_id)
             .delete();
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn get_collections(&self) -> Result<Vec<Collection>> {
-        let mut builder = self.postgrest
-            .from("collections")
-            .select("*");
-        
+        let mut builder = self.postgrest.from("collections").select("*");
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;
@@ -454,68 +492,70 @@ CREATE TRIGGER update_environments_updated_at
     pub async fn create_request(&self, request: &HttpRequest) -> Result<String> {
         // PostgREST insert expects an array, not a single object
         let items = vec![request];
-        
-        let mut builder = self.postgrest
+
+        let mut builder = self
+            .postgrest
             .from("requests")
             .insert(serde_json::to_string(&items)?);
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;
-        
+
         #[derive(Deserialize)]
         struct IdResponse {
             id: String,
         }
 
-        let data: Vec<IdResponse> = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("Failed to parse request response: {}. Response text: {}", e, text))?;
+        let data: Vec<IdResponse> = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "Failed to parse request response: {}. Response text: {}",
+                e,
+                text
+            )
+        })?;
         data.first()
             .map(|r| r.id.clone())
             .ok_or_else(|| anyhow!("No ID returned"))
     }
 
     pub async fn update_request(&self, cloud_id: &str, request: &HttpRequest) -> Result<()> {
-        let mut builder = self.postgrest
+        let mut builder = self
+            .postgrest
             .from("requests")
             .eq("id", cloud_id)
             .update(serde_json::to_string(request)?);
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn delete_request(&self, cloud_id: &str) -> Result<()> {
-        let mut builder = self.postgrest
-            .from("requests")
-            .eq("id", cloud_id)
-            .delete();
-        
+        let mut builder = self.postgrest.from("requests").eq("id", cloud_id).delete();
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn get_requests(&self) -> Result<Vec<HttpRequest>> {
-        let mut builder = self.postgrest
-            .from("requests")
-            .select("*");
-        
+        let mut builder = self.postgrest.from("requests").select("*");
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;
@@ -527,68 +567,78 @@ CREATE TRIGGER update_environments_updated_at
     pub async fn create_environment(&self, environment: &Environment) -> Result<String> {
         // PostgREST insert expects an array, not a single object
         let items = vec![environment];
-        
-        let mut builder = self.postgrest
+
+        let mut builder = self
+            .postgrest
             .from("environments")
             .insert(serde_json::to_string(&items)?);
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;
-        
+
         #[derive(Deserialize)]
         struct IdResponse {
             id: String,
         }
 
-        let data: Vec<IdResponse> = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("Failed to parse environment response: {}. Response text: {}", e, text))?;
+        let data: Vec<IdResponse> = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "Failed to parse environment response: {}. Response text: {}",
+                e,
+                text
+            )
+        })?;
         data.first()
             .map(|r| r.id.clone())
             .ok_or_else(|| anyhow!("No ID returned"))
     }
 
-    pub async fn update_environment(&self, cloud_id: &str, environment: &Environment) -> Result<()> {
-        let mut builder = self.postgrest
+    pub async fn update_environment(
+        &self,
+        cloud_id: &str,
+        environment: &Environment,
+    ) -> Result<()> {
+        let mut builder = self
+            .postgrest
             .from("environments")
             .eq("id", cloud_id)
             .update(serde_json::to_string(environment)?);
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn delete_environment(&self, cloud_id: &str) -> Result<()> {
-        let mut builder = self.postgrest
+        let mut builder = self
+            .postgrest
             .from("environments")
             .eq("id", cloud_id)
             .delete();
-        
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         builder.execute().await?;
         Ok(())
     }
 
     pub async fn get_environments(&self) -> Result<Vec<Environment>> {
-        let mut builder = self.postgrest
-            .from("environments")
-            .select("*");
-        
+        let mut builder = self.postgrest.from("environments").select("*");
+
         if let Some(auth) = self.needs_auth_override() {
             builder = builder.auth(&auth);
         }
-        
+
         let response = builder.execute().await?;
 
         let text = response.text().await?;

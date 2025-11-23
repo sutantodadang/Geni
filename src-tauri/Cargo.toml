@@ -1,6 +1,6 @@
 [package]
 name = "geni"
-version = "0.1.6"
+version = "0.1.7"
 description = "A Postman-like API client built with Tauri and Rust"
 authors = ["you"]
 edition = "2021"
@@ -33,6 +33,7 @@ anyhow = "1.0"
 syntect = "5.1"
 indexmap = { version = "2.0", features = ["serde"] }
 base64 = "0.21"
+mime_guess = "2.0"
 postgrest = "1.5"
 oauth2 = "4.4"
 url = "2.5"

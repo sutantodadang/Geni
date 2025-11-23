@@ -1,14 +1,14 @@
-pub mod supabase;
-pub mod google_drive;
 pub mod api_server;
+pub mod google_drive;
+pub mod supabase;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::models::*;
-use self::supabase::SupabaseClient;
-use self::google_drive::GoogleDriveClient;
 use self::api_server::ApiServerClient;
+use self::google_drive::GoogleDriveClient;
+use self::supabase::SupabaseClient;
+use crate::models::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -58,7 +58,7 @@ impl ProviderConfig {
     pub fn to_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|e| anyhow!("Failed to serialize config: {}", e))
     }
-    
+
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json).map_err(|e| anyhow!("Failed to deserialize config: {}", e))
     }
@@ -74,20 +74,40 @@ impl SyncClient {
     pub fn new(config: ProviderConfig) -> Result<Self> {
         match config.provider {
             SyncProvider::ApiServer => {
-                let url = config.api_server_url.ok_or_else(|| anyhow!("API Server URL required"))?;
+                let url = config
+                    .api_server_url
+                    .ok_or_else(|| anyhow!("API Server URL required"))?;
                 Ok(Self::ApiServer(ApiServerClient::new(&url)?))
-            },
+            }
             SyncProvider::Supabase => {
-                let url = config.supabase_url.ok_or_else(|| anyhow!("Supabase URL required"))?;
-                let api_key = config.supabase_api_key.ok_or_else(|| anyhow!("Supabase API key required"))?;
-                Ok(Self::Supabase(SupabaseClient::new_with_db_uri(&url, &api_key, config.supabase_db_uri)?))
-            },
+                let url = config
+                    .supabase_url
+                    .ok_or_else(|| anyhow!("Supabase URL required"))?;
+                let api_key = config
+                    .supabase_api_key
+                    .ok_or_else(|| anyhow!("Supabase API key required"))?;
+                Ok(Self::Supabase(SupabaseClient::new_with_db_uri(
+                    &url,
+                    &api_key,
+                    config.supabase_db_uri,
+                )?))
+            }
             SyncProvider::GoogleDrive => {
-                let client_id = config.google_client_id.ok_or_else(|| anyhow!("Google Client ID required"))?;
-                let client_secret = config.google_client_secret.ok_or_else(|| anyhow!("Google Client Secret required"))?;
-                let redirect_uri = config.google_redirect_uri.ok_or_else(|| anyhow!("Google Redirect URI required"))?;
-                Ok(Self::GoogleDrive(GoogleDriveClient::new(&client_id, &client_secret, &redirect_uri)?))
-            },
+                let client_id = config
+                    .google_client_id
+                    .ok_or_else(|| anyhow!("Google Client ID required"))?;
+                let client_secret = config
+                    .google_client_secret
+                    .ok_or_else(|| anyhow!("Google Client Secret required"))?;
+                let redirect_uri = config
+                    .google_redirect_uri
+                    .ok_or_else(|| anyhow!("Google Redirect URI required"))?;
+                Ok(Self::GoogleDrive(GoogleDriveClient::new(
+                    &client_id,
+                    &client_secret,
+                    &redirect_uri,
+                )?))
+            }
         }
     }
 
@@ -99,8 +119,16 @@ impl SyncClient {
         Ok(Self::Supabase(SupabaseClient::new(url, api_key)?))
     }
 
-    pub fn new_google_drive(client_id: &str, client_secret: &str, redirect_uri: &str) -> Result<Self> {
-        Ok(Self::GoogleDrive(GoogleDriveClient::new(client_id, client_secret, redirect_uri)?))
+    pub fn new_google_drive(
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Result<Self> {
+        Ok(Self::GoogleDrive(GoogleDriveClient::new(
+            client_id,
+            client_secret,
+            redirect_uri,
+        )?))
     }
 
     pub fn is_authenticated(&self) -> bool {
@@ -128,31 +156,61 @@ impl SyncClient {
     }
 
     // API Server-specific methods
-    pub async fn api_server_sign_up(&mut self, email: &str, password: &str, name: Option<String>) -> Result<TokenResponse> {
+    pub async fn api_server_sign_up(
+        &mut self,
+        email: &str,
+        password: &str,
+        name: Option<String>,
+    ) -> Result<TokenResponse> {
         match self {
-            Self::ApiServer(client) => client.sign_up(email.to_string(), password.to_string(), name).await,
+            Self::ApiServer(client) => {
+                client
+                    .sign_up(email.to_string(), password.to_string(), name)
+                    .await
+            }
             _ => Err(anyhow!("Not an API Server client")),
         }
     }
 
-    pub async fn api_server_sign_in(&mut self, email: &str, password: &str) -> Result<TokenResponse> {
+    pub async fn api_server_sign_in(
+        &mut self,
+        email: &str,
+        password: &str,
+    ) -> Result<TokenResponse> {
         match self {
-            Self::ApiServer(client) => client.sign_in(email.to_string(), password.to_string()).await,
+            Self::ApiServer(client) => {
+                client
+                    .sign_in(email.to_string(), password.to_string())
+                    .await
+            }
             _ => Err(anyhow!("Not an API Server client")),
         }
     }
 
     // Supabase-specific methods
-    pub async fn supabase_sign_up(&mut self, email: &str, password: &str, name: Option<String>) -> Result<TokenResponse> {
+    pub async fn supabase_sign_up(
+        &mut self,
+        email: &str,
+        password: &str,
+        name: Option<String>,
+    ) -> Result<TokenResponse> {
         match self {
-            Self::Supabase(client) => client.sign_up(email.to_string(), password.to_string(), name).await,
+            Self::Supabase(client) => {
+                client
+                    .sign_up(email.to_string(), password.to_string(), name)
+                    .await
+            }
             _ => Err(anyhow!("Not a Supabase client")),
         }
     }
 
     pub async fn supabase_sign_in(&mut self, email: &str, password: &str) -> Result<TokenResponse> {
         match self {
-            Self::Supabase(client) => client.sign_in(email.to_string(), password.to_string()).await,
+            Self::Supabase(client) => {
+                client
+                    .sign_in(email.to_string(), password.to_string())
+                    .await
+            }
             _ => Err(anyhow!("Not a Supabase client")),
         }
     }
@@ -196,7 +254,12 @@ impl SyncClient {
         }
     }
 
-    pub async fn push_sync(&self, collections: Vec<Collection>, requests: Vec<HttpRequest>, environments: Vec<Environment>) -> Result<()> {
+    pub async fn push_sync(
+        &self,
+        collections: Vec<Collection>,
+        requests: Vec<HttpRequest>,
+        environments: Vec<Environment>,
+    ) -> Result<()> {
         let data = SyncPullResponse {
             collections,
             requests,
@@ -231,7 +294,7 @@ impl SyncClient {
                 }
 
                 Ok(())
-            },
+            }
             Self::Supabase(client) => {
                 // Supabase: push each item individually with create/update logic
                 for collection in &data.collections {
@@ -259,11 +322,11 @@ impl SyncClient {
                 }
 
                 Ok(())
-            },
+            }
             Self::GoogleDrive(client) => {
                 // Google Drive: bulk push to JSON file
                 client.push_sync(data).await
-            },
+            }
         }
     }
 
@@ -279,7 +342,7 @@ impl SyncClient {
                     requests,
                     environments,
                 })
-            },
+            }
             Self::Supabase(client) => {
                 let collections = client.get_collections().await?;
                 let requests = client.get_requests().await?;
@@ -290,7 +353,7 @@ impl SyncClient {
                     requests,
                     environments,
                 })
-            },
+            }
             Self::GoogleDrive(client) => client.pull_sync().await,
         }
     }
@@ -305,7 +368,7 @@ impl SyncClient {
                 } else {
                     client.create_collection(collection).await
                 }
-            },
+            }
             Self::Supabase(client) => {
                 if let Some(cloud_id) = &collection.cloud_id {
                     client.update_collection(cloud_id, collection).await?;
@@ -313,8 +376,10 @@ impl SyncClient {
                 } else {
                     client.create_collection(collection).await
                 }
-            },
-            Self::GoogleDrive(_) => Err(anyhow!("Individual operations not supported for Google Drive, use push_sync instead")),
+            }
+            Self::GoogleDrive(_) => Err(anyhow!(
+                "Individual operations not supported for Google Drive, use push_sync instead"
+            )),
         }
     }
 
@@ -322,7 +387,9 @@ impl SyncClient {
         match self {
             Self::ApiServer(client) => client.delete_collection(cloud_id).await,
             Self::Supabase(client) => client.delete_collection(cloud_id).await,
-            Self::GoogleDrive(_) => Err(anyhow!("Individual delete not supported for Google Drive")),
+            Self::GoogleDrive(_) => {
+                Err(anyhow!("Individual delete not supported for Google Drive"))
+            }
         }
     }
 
@@ -335,7 +402,7 @@ impl SyncClient {
                 } else {
                     client.create_request(request).await
                 }
-            },
+            }
             Self::Supabase(client) => {
                 if let Some(cloud_id) = &request.cloud_id {
                     client.update_request(cloud_id, request).await?;
@@ -343,8 +410,10 @@ impl SyncClient {
                 } else {
                     client.create_request(request).await
                 }
-            },
-            Self::GoogleDrive(_) => Err(anyhow!("Individual operations not supported for Google Drive, use push_sync instead")),
+            }
+            Self::GoogleDrive(_) => Err(anyhow!(
+                "Individual operations not supported for Google Drive, use push_sync instead"
+            )),
         }
     }
 
@@ -352,7 +421,9 @@ impl SyncClient {
         match self {
             Self::ApiServer(client) => client.delete_request(cloud_id).await,
             Self::Supabase(client) => client.delete_request(cloud_id).await,
-            Self::GoogleDrive(_) => Err(anyhow!("Individual delete not supported for Google Drive")),
+            Self::GoogleDrive(_) => {
+                Err(anyhow!("Individual delete not supported for Google Drive"))
+            }
         }
     }
 
@@ -365,7 +436,7 @@ impl SyncClient {
                 } else {
                     client.create_environment(environment).await
                 }
-            },
+            }
             Self::Supabase(client) => {
                 if let Some(cloud_id) = &environment.cloud_id {
                     client.update_environment(cloud_id, environment).await?;
@@ -373,8 +444,10 @@ impl SyncClient {
                 } else {
                     client.create_environment(environment).await
                 }
-            },
-            Self::GoogleDrive(_) => Err(anyhow!("Individual operations not supported for Google Drive, use push_sync instead")),
+            }
+            Self::GoogleDrive(_) => Err(anyhow!(
+                "Individual operations not supported for Google Drive, use push_sync instead"
+            )),
         }
     }
 
@@ -382,7 +455,9 @@ impl SyncClient {
         match self {
             Self::ApiServer(client) => client.delete_environment(cloud_id).await,
             Self::Supabase(client) => client.delete_environment(cloud_id).await,
-            Self::GoogleDrive(_) => Err(anyhow!("Individual delete not supported for Google Drive")),
+            Self::GoogleDrive(_) => {
+                Err(anyhow!("Individual delete not supported for Google Drive"))
+            }
         }
     }
 }
@@ -404,12 +479,33 @@ impl SyncOrchestrator {
         local_environments: Vec<Environment>,
     ) -> Result<(Vec<Collection>, Vec<HttpRequest>, Vec<Environment>)> {
         // Step 1: Push unsynced items
-        let unsynced_collections: Vec<_> = local_collections.iter().filter(|c| !c.synced).cloned().collect();
-        let unsynced_requests: Vec<_> = local_requests.iter().filter(|r| !r.synced).cloned().collect();
-        let unsynced_environments: Vec<_> = local_environments.iter().filter(|e| !e.synced).cloned().collect();
+        let unsynced_collections: Vec<_> = local_collections
+            .iter()
+            .filter(|c| !c.synced)
+            .cloned()
+            .collect();
+        let unsynced_requests: Vec<_> = local_requests
+            .iter()
+            .filter(|r| !r.synced)
+            .cloned()
+            .collect();
+        let unsynced_environments: Vec<_> = local_environments
+            .iter()
+            .filter(|e| !e.synced)
+            .cloned()
+            .collect();
 
-        if !unsynced_collections.is_empty() || !unsynced_requests.is_empty() || !unsynced_environments.is_empty() {
-            self.sync_client.push_sync(unsynced_collections, unsynced_requests, unsynced_environments).await?;
+        if !unsynced_collections.is_empty()
+            || !unsynced_requests.is_empty()
+            || !unsynced_environments.is_empty()
+        {
+            self.sync_client
+                .push_sync(
+                    unsynced_collections,
+                    unsynced_requests,
+                    unsynced_environments,
+                )
+                .await?;
         }
 
         // Step 2: Pull updates from cloud

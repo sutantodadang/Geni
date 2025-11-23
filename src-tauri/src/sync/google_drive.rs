@@ -1,12 +1,12 @@
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
-use reqwest::Client;
-use oauth2::{
-    AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
-    basic::BasicClient, AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope,
-    TokenResponse as OAuth2TokenResponse, RefreshToken,
-};
 use crate::models::*;
+use anyhow::{anyhow, Result};
+use oauth2::{
+    basic::BasicClient, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
+    PkceCodeChallenge, RedirectUrl, RefreshToken, Scope, TokenResponse as OAuth2TokenResponse,
+    TokenUrl,
+};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
 const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -75,11 +75,18 @@ impl GoogleDriveClient {
     pub fn generate_auth_url(&self) -> Result<(String, String)> {
         let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-        let (auth_url, csrf_token) = self.oauth_client
+        let (auth_url, csrf_token) = self
+            .oauth_client
             .authorize_url(CsrfToken::new_random)
-            .add_scope(Scope::new("https://www.googleapis.com/auth/drive.file".to_string()))
-            .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_string()))
-            .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_string()))
+            .add_scope(Scope::new(
+                "https://www.googleapis.com/auth/drive.file".to_string(),
+            ))
+            .add_scope(Scope::new(
+                "https://www.googleapis.com/auth/userinfo.email".to_string(),
+            ))
+            .add_scope(Scope::new(
+                "https://www.googleapis.com/auth/userinfo.profile".to_string(),
+            ))
             .set_pkce_challenge(pkce_challenge)
             .url();
 
@@ -87,7 +94,8 @@ impl GoogleDriveClient {
     }
 
     pub async fn exchange_code(&mut self, code: &str) -> Result<TokenResponse> {
-        let token_result = self.oauth_client
+        let token_result = self
+            .oauth_client
             .exchange_code(AuthorizationCode::new(code.to_string()))
             .request_async(oauth2::reqwest::async_http_client)
             .await?;
@@ -114,10 +122,13 @@ impl GoogleDriveClient {
     }
 
     async fn get_user_info(&self) -> Result<GoogleUserInfo> {
-        let token = self.access_token.as_ref()
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| anyhow!("Not authenticated"))?;
 
-        let response = self.client
+        let response = self
+            .client
             .get("https://www.googleapis.com/oauth2/v2/userinfo")
             .bearer_auth(token)
             .send()
@@ -132,7 +143,9 @@ impl GoogleDriveClient {
     }
 
     async fn ensure_geni_folder(&mut self) -> Result<()> {
-        let token = self.access_token.as_ref()
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| anyhow!("Not authenticated"))?;
 
         // Search for existing Geni folder
@@ -163,7 +176,8 @@ impl GoogleDriveClient {
                 parents: None,
             };
 
-            let response = self.client
+            let response = self
+                .client
                 .post(&format!("{}/files", GOOGLE_DRIVE_API))
                 .bearer_auth(token)
                 .query(&[("fields", "id")])
@@ -202,22 +216,27 @@ impl GoogleDriveClient {
     }
 
     async fn get_or_create_data_file(&self, filename: &str) -> Result<Option<String>> {
-        let token = self.access_token.as_ref()
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| anyhow!("Not authenticated"))?;
 
-        let folder_id = self.folder_id.as_ref()
+        let folder_id = self
+            .folder_id
+            .as_ref()
             .ok_or_else(|| anyhow!("Folder not initialized"))?;
 
         // Search for existing file
-        let query = format!("name='{}' and '{}' in parents and trashed=false", filename, folder_id);
-        
-        let response = self.client
+        let query = format!(
+            "name='{}' and '{}' in parents and trashed=false",
+            filename, folder_id
+        );
+
+        let response = self
+            .client
             .get(&format!("{}/files", GOOGLE_DRIVE_API))
             .bearer_auth(token)
-            .query(&[
-                ("q", query.as_str()),
-                ("fields", "files(id, name)"),
-            ])
+            .query(&[("q", query.as_str()), ("fields", "files(id, name)")])
             .send()
             .await?;
 
@@ -230,10 +249,14 @@ impl GoogleDriveClient {
     }
 
     pub async fn push_sync(&self, data: SyncPullResponse) -> Result<()> {
-        let token = self.access_token.as_ref()
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| anyhow!("Not authenticated"))?;
 
-        let folder_id = self.folder_id.as_ref()
+        let folder_id = self
+            .folder_id
+            .as_ref()
             .ok_or_else(|| anyhow!("Folder not initialized"))?;
 
         let sync_data = SyncData {
@@ -251,7 +274,8 @@ impl GoogleDriveClient {
 
         if let Some(file_id) = file_id {
             // Update existing file
-            let response = self.client
+            let response = self
+                .client
                 .patch(&format!("{}/files/{}", GOOGLE_DRIVE_API, file_id))
                 .bearer_auth(token)
                 .query(&[("uploadType", "media")])
@@ -281,18 +305,20 @@ impl GoogleDriveClient {
             );
             let file_part = format!(
                 "--{}\r\nContent-Type: application/json\r\n\r\n{}\r\n--{}--",
-                boundary,
-                json_data,
-                boundary
+                boundary, json_data, boundary
             );
 
             let body = format!("{}{}", metadata_part, file_part);
 
-            let response = self.client
+            let response = self
+                .client
                 .post(&format!("{}/files", GOOGLE_DRIVE_API))
                 .bearer_auth(token)
                 .query(&[("uploadType", "multipart")])
-                .header("Content-Type", format!("multipart/related; boundary={}", boundary))
+                .header(
+                    "Content-Type",
+                    format!("multipart/related; boundary={}", boundary),
+                )
                 .body(body)
                 .send()
                 .await?;
@@ -307,14 +333,17 @@ impl GoogleDriveClient {
     }
 
     pub async fn pull_sync(&self) -> Result<SyncPullResponse> {
-        let token = self.access_token.as_ref()
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| anyhow!("Not authenticated"))?;
 
         let file_id = self.get_or_create_data_file("geni_data.json").await?;
 
         if let Some(file_id) = file_id {
             // Download file content
-            let response = self.client
+            let response = self
+                .client
                 .get(&format!("{}/files/{}?alt=media", GOOGLE_DRIVE_API, file_id))
                 .bearer_auth(token)
                 .send()
@@ -343,16 +372,19 @@ impl GoogleDriveClient {
     }
 
     pub async fn refresh_access_token(&mut self) -> Result<()> {
-        let refresh_token = self.refresh_token.as_ref()
+        let refresh_token = self
+            .refresh_token
+            .as_ref()
             .ok_or_else(|| anyhow!("No refresh token available"))?;
 
-        let token_result = self.oauth_client
+        let token_result = self
+            .oauth_client
             .exchange_refresh_token(&RefreshToken::new(refresh_token.clone()))
             .request_async(oauth2::reqwest::async_http_client)
             .await?;
 
         self.access_token = Some(token_result.access_token().secret().to_string());
-        
+
         if let Some(new_refresh_token) = token_result.refresh_token() {
             self.refresh_token = Some(new_refresh_token.secret().to_string());
         }
