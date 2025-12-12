@@ -68,7 +68,7 @@ const UrlEncodedEditor: React.FC<UrlEncodedEditorProps> = ({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 overflow-hidden">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
           URL Encoded Form Data
@@ -89,11 +89,11 @@ const UrlEncodedEditor: React.FC<UrlEncodedEditorProps> = ({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 overflow-hidden">
           {rows.map((row, index) => (
             <div
               key={index}
-              className={`flex items-center space-x-2 p-2 rounded-md border ${
+              className={`flex items-center space-x-2 p-2 rounded-md border max-w-full overflow-hidden ${
                 row.enabled
                   ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600"
                   : "bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-700"
@@ -110,24 +110,24 @@ const UrlEncodedEditor: React.FC<UrlEncodedEditorProps> = ({
               </div>
 
               {/* Key Input */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <input
                   type="text"
                   value={row.key}
                   onChange={(e) => updateRow(index, { key: e.target.value })}
-                  className="w-full form-input text-sm p-1"
+                  className="w-full form-input text-sm p-1 truncate"
                   placeholder="Key"
                   disabled={!row.enabled}
                 />
               </div>
 
               {/* Value Input */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <input
                   type="text"
                   value={row.value}
                   onChange={(e) => updateRow(index, { value: e.target.value })}
-                  className="w-full form-input text-sm p-1"
+                  className="w-full form-input text-sm p-1 truncate"
                   placeholder="Value"
                   disabled={!row.enabled}
                 />
