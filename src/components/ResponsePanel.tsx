@@ -154,7 +154,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
 
   if (tab.loading) {
     return (
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Response
@@ -174,7 +174,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
 
   if (!response) {
     return (
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Response
@@ -229,7 +229,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({ tab }) => {
         <div className="flex items-center space-x-4 flex-wrap">
           <div
             className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-              response.status,
+              response.status
             )}`}
           >
             {getStatusIcon(response.status)}

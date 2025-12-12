@@ -90,26 +90,26 @@ function AppContent() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-w-0">
         {/* Sidebar */}
         <Sidebar />
 
         {/* Main Panel */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Tab Bar */}
           <TabBar />
 
           {/* Content Area */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-w-0">
             {activeTab ? (
               <>
                 {/* Request Panel */}
-                <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
+                <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700 overflow-hidden min-w-0 flex-grow-0 flex-shrink-0 basis-1/2">
                   <RequestPanel tab={activeTab} />
                 </div>
 
                 {/* Response Panel */}
-                <div className="w-1/2 flex flex-col">
+                <div className="w-1/2 flex flex-col overflow-hidden min-w-0 flex-grow-0 flex-shrink-0 basis-1/2">
                   <ResponsePanel tab={activeTab} />
                 </div>
               </>
