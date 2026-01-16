@@ -84,7 +84,7 @@ const CollectionItem: React.FC<CollectionItemProps> = ({
   allCollections,
 }) => {
   const { collectionRequestsLoading, getCollectionRequests } = useAppStore();
-  const marginLeft = depth * 16;
+  const marginLeft = depth * 20;
 
   if (!collection.id) {
     console.warn("Skipping collection without ID:", collection);
@@ -321,7 +321,7 @@ const CollectionItem: React.FC<CollectionItemProps> = ({
             {collectionRequestsLoading[collection.id] ? (
               <div
                 className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1"
-                style={{ marginLeft: `${marginLeft + 8}px` }}
+                style={{ marginLeft: `${marginLeft + 20}px` }}
               >
                 Loading requests...
               </div>
@@ -341,7 +341,7 @@ const CollectionItem: React.FC<CollectionItemProps> = ({
                         {(dragHandleProps) => (
                           <div
                             data-type="request"
-                            style={{ marginLeft: `${marginLeft + 8}px` }}
+                            style={{ marginLeft: `${marginLeft + 20}px` }}
                             className={`flex items-center px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/70 rounded cursor-pointer group transition-all duration-200 ${
                               dragOverTarget === request.id
                                 ? "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-dashed border-yellow-400 dark:border-yellow-500 rounded-md"
@@ -432,7 +432,7 @@ const CollectionItem: React.FC<CollectionItemProps> = ({
                 {getCollectionRequests(collection.id).length === 0 && (
                   <div
                     className="text-xs text-gray-400 dark:text-gray-500 px-2 py-1 italic"
-                    style={{ marginLeft: `${marginLeft + 8}px` }}
+                    style={{ marginLeft: `${marginLeft + 20}px` }}
                   >
                     No requests in this collection
                   </div>

@@ -568,7 +568,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
 
     const isExpanded = expandedCollections.has(collection.id);
     const childCollections = getChildCollections(collection.id);
-    const marginLeft = depth * 16; // 16px per level
+    const marginLeft = depth * 20; // 20px per level
 
     return (
       <div>
@@ -812,7 +812,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 {collectionRequestsLoading[collection.id] ? (
                   <div
                     className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1"
-                    style={{ marginLeft: `${marginLeft + 8}px` }}
+                    style={{ marginLeft: `${marginLeft + 20}px` }}
                   >
                     Loading requests...
                   </div>
@@ -835,7 +835,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                               {(dragHandleProps) => (
                                 <div
                                   data-type="request"
-                                  style={{ marginLeft: `${marginLeft + 8}px` }}
+                                  style={{ marginLeft: `${marginLeft + 20}px` }}
                                   className={`flex items-center px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/70 rounded cursor-pointer group transition-all duration-200 ${
                                     dragOverTarget === request.id
                                       ? "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-dashed border-yellow-400 dark:border-yellow-500 rounded-md"
@@ -937,7 +937,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
                     {getCollectionRequests(collection.id).length === 0 && (
                       <div
                         className="text-xs text-gray-400 dark:text-gray-500 px-2 py-1 italic"
-                        style={{ marginLeft: `${marginLeft + 8}px` }}
+                        style={{ marginLeft: `${marginLeft + 20}px` }}
                       >
                         No requests in this collection
                       </div>

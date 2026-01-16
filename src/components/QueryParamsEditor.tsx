@@ -22,12 +22,29 @@ const QueryParamsEditor: React.FC<QueryParamsEditorProps> = ({
   const parseUrlParams = (urlString: string): Record<string, string> => {
     const params: Record<string, string> = {};
     try {
-      const urlObj = new URL(urlString);
+      // Handle relative URLs by adding a dummy base
+      const urlToParse = urlString.startsWith('http') 
+        ? urlString 
+        : `http://dummy.com${urlString.startsWith('/') ? '' : '/'}${urlString}`;
+      
+      const urlObj = new URL(urlToParse);
       urlObj.searchParams.forEach((value, key) => {
         params[key] = value;
       });
     } catch {
-      // Invalid URL, return empty params
+      // Invalid URL, try manual parsing for edge cases
+      if (urlString.includes('?')) {
+          const queryString = urlString.split('?')[1];
+          if (queryString) {
+              const pairs = queryString.split('&');
+              pairs.forEach(pair => {
+                  const [key, value] = pair.split('=');
+                  if (key) {
+                      params[decodeURIComponent(key)] = value ? decodeURIComponent(value) : "";
+                  }
+              });
+          }
+      }
     }
     return params;
   };
@@ -54,7 +71,13 @@ const QueryParamsEditor: React.FC<QueryParamsEditorProps> = ({
   // Update URL from rows
   const updateUrl = (newRows: QueryParamRow[]) => {
     try {
-      const urlObj = new URL(url);
+      // Handle relative URLs
+      const isRelative = !url.startsWith('http');
+      const urlToParse = isRelative
+        ? `http://dummy.com${url.startsWith('/') ? '' : '/'}${url}`
+        : url;
+
+      const urlObj = new URL(urlToParse);
       // Clear existing params
       urlObj.search = "";
 
@@ -65,7 +88,14 @@ const QueryParamsEditor: React.FC<QueryParamsEditorProps> = ({
         }
       });
 
-      onUrlChange(urlObj.toString());
+      // Return the path + search if it was relative
+      if (isRelative) {
+          const path = urlObj.pathname;
+          const search = urlObj.search;
+          onUrlChange(`${path}${search}`);
+      } else {
+          onUrlChange(urlObj.toString());
+      }
     } catch {
       // Invalid URL, don't update
     }
@@ -98,7 +128,12 @@ const QueryParamsEditor: React.FC<QueryParamsEditorProps> = ({
 
   const getUrlPreview = () => {
     try {
-      const urlObj = new URL(url);
+      const isRelative = !url.startsWith('http');
+      const urlToParse = isRelative
+        ? `http://dummy.com${url.startsWith('/') ? '' : '/'}${url}`
+        : url;
+
+      const urlObj = new URL(urlToParse);
       urlObj.search = "";
 
       rows.forEach((row) => {
@@ -107,7 +142,7 @@ const QueryParamsEditor: React.FC<QueryParamsEditorProps> = ({
         }
       });
 
-      return urlObj.toString();
+      return isRelative ? `${urlObj.pathname}${urlObj.search}` : urlObj.toString();
     } catch {
       return url;
     }

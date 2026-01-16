@@ -5,6 +5,7 @@ mod commands;
 mod db;
 mod http;
 mod models;
+mod openapi;
 mod postman;
 mod sync;
 
