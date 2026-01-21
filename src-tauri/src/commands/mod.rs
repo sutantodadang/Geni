@@ -602,62 +602,83 @@ pub async fn import_postman_collection(
     json_data: String,
     state: State<'_, AppState>,
 ) -> Result<Collection, String> {
-    // Parse JSON string directly
-    let postman_collection: crate::postman::PostmanCollection = serde_json::from_str(&json_data)
-        .map_err(|e| {
-            eprintln!("❌ Postman import error: {}", e);
-            // Log the problematic area of JSON
-            if let Some(line_col) = e.to_string().split("at line ").nth(1) {
-                if let Some(line_str) = line_col.split(" column").next() {
-                    if let Ok(line_num) = line_str.parse::<usize>() {
-                        let lines: Vec<&str> = json_data.lines().collect();
-                        if line_num > 0 && line_num <= lines.len() {
-                            eprintln!("📍 Context around line {}:", line_num);
-                            let start = line_num.saturating_sub(3);
-                            let end = (line_num + 2).min(lines.len());
-                            for i in start..end {
-                                if i == line_num - 1 {
-                                    eprintln!(">>> {}: {}", i + 1, lines[i]);
-                                } else {
-                                    eprintln!("    {}: {}", i + 1, lines[i]);
+    // Try to parse as Value first to detect type
+    let v: serde_json::Value = serde_json::from_str(&json_data).map_err(|e| e.to_string())?;
+
+    if v.get("openapi").is_some() || v.get("swagger").is_some() {
+        // Handle OpenAPI
+        let spec: crate::openapi::OpenApiSpec = serde_json::from_value(v)
+            .map_err(|e| format!("Invalid OpenAPI spec: {}", e))?;
+        
+        let (collections, requests) = crate::openapi::convert_openapi(spec);
+        
+        // Save collection and requests
+        for collection in &collections {
+            state.db.create_collection(collection).await.map_err(|e| e.to_string())?;
+        }
+        for request in requests {
+            state.db.save_request(&request).await.map_err(|e| e.to_string())?;
+        }
+        
+        Ok(collections.into_iter().next().unwrap())
+    } else {
+        // Parse JSON string directly
+        let postman_collection: crate::postman::PostmanCollection = serde_json::from_str(&json_data)
+            .map_err(|e| {
+                eprintln!("❌ Postman import error: {}", e);
+                // Log the problematic area of JSON
+                if let Some(line_col) = e.to_string().split("at line ").nth(1) {
+                    if let Some(line_str) = line_col.split(" column").next() {
+                        if let Ok(line_num) = line_str.parse::<usize>() {
+                            let lines: Vec<&str> = json_data.lines().collect();
+                            if line_num > 0 && line_num <= lines.len() {
+                                eprintln!("📍 Context around line {}:", line_num);
+                                let start = line_num.saturating_sub(3);
+                                let end = (line_num + 2).min(lines.len());
+                                for i in start..end {
+                                    if i == line_num - 1 {
+                                        eprintln!(">>> {}: {}", i + 1, lines[i]);
+                                    } else {
+                                        eprintln!("    {}: {}", i + 1, lines[i]);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            format!("Invalid Postman collection format: {}", e)
-        })?;
+                format!("Invalid Postman collection format: {}", e)
+            })?;
 
-    // Convert to Geni format
-    let (mut collections, requests) =
-        crate::postman::convert_postman_collection(postman_collection);
+        // Convert to Geni format
+        let (mut collections, requests) =
+            crate::postman::convert_postman_collection(postman_collection);
 
-    // Mark the root collection as imported
-    if let Some(root_collection) = collections.first_mut() {
-        root_collection.name = format!("{} (Imported from Postman)", root_collection.name);
+        // Mark the root collection as imported
+        if let Some(root_collection) = collections.first_mut() {
+            root_collection.name = format!("{} (Imported from Postman)", root_collection.name);
+        }
+
+        // Save all collections (root and sub-collections)
+        for collection in &collections {
+            state
+                .db
+                .create_collection(collection)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Import all requests
+        for request in &requests {
+            state
+                .db
+                .save_request(request)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Return the root collection
+        Ok(collections.into_iter().next().unwrap())
     }
-
-    // Save all collections (root and sub-collections)
-    for collection in &collections {
-        state
-            .db
-            .create_collection(collection)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
-    // Import all requests
-    for request in &requests {
-        state
-            .db
-            .save_request(request)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
-    // Return the root collection
-    Ok(collections.into_iter().next().unwrap())
 }
 
 // Cloud Sync Commands
