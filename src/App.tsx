@@ -11,6 +11,7 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import EnvironmentManager from "./components/EnvironmentManager";
 import SyncSettings from "./components/SyncSettings";
 import SyncIndicator from "./components/SyncIndicator";
+import UpdateManager from "./components/UpdateManager";
 import { Loader2, Settings, Moon, Sun } from "lucide-react";
 import "./App.css";
 import packageJson from "../package.json";
@@ -83,6 +84,7 @@ function AppContent() {
           >
             <Settings className="h-4 w-4" />
           </button>
+          <UpdateManager />
           <span className="text-sm text-gray-500 dark:text-gray-400">
             v{packageJson.version}
           </span>

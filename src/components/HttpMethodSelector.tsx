@@ -68,10 +68,11 @@ const HttpMethodSelector: React.FC<HttpMethodSelectorProps> = ({
         className={`
           flex items-center justify-between w-28 px-2 py-2
           border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
-          bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none
+          bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none
           focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400
-          disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed
+          disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:cursor-not-allowed
           transition-all duration-150 hover:border-gray-400 dark:hover:border-gray-500
+          text-gray-900 dark:text-gray-100
           ${isOpen ? "ring-2 ring-blue-500 dark:ring-blue-400 border-blue-500 dark:border-blue-400" : ""}
         `}
         aria-haspopup="listbox"
@@ -85,7 +86,7 @@ const HttpMethodSelector: React.FC<HttpMethodSelectorProps> = ({
           className="flex-shrink-0"
         />
         <ChevronDown
-          className={`h-3 w-3 text-gray-500 dark:text-gray-400 transition-transform duration-150 ${
+          className={`h-3 w-3 text-gray-400 dark:text-gray-300 transition-transform duration-150 ${
             isOpen ? "rotate-180" : ""
           }`}
         />
@@ -93,9 +94,9 @@ const HttpMethodSelector: React.FC<HttpMethodSelectorProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-32 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+        <div className="absolute z-50 mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
           <div
-            className="py-1 max-h-60 overflow-auto"
+            className="py-1 max-h-60 overflow-auto custom-scrollbar"
             role="listbox"
             aria-label="HTTP Methods"
           >
@@ -106,7 +107,8 @@ const HttpMethodSelector: React.FC<HttpMethodSelectorProps> = ({
                 onClick={() => handleMethodSelect(method)}
                 className={`
                   w-full px-3 py-2 text-left flex items-center
-                  hover:bg-gray-100 dark:hover:bg-gray-600 focus:bg-gray-100 dark:focus:bg-gray-600 focus:outline-none
+                  text-gray-900 dark:text-gray-100
+                  hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700 focus:outline-none
                   transition-colors duration-150
                   ${value === method ? "bg-blue-50 dark:bg-blue-900/30" : ""}
                 `}

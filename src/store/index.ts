@@ -200,16 +200,20 @@ const generateAuthHeaders = (auth?: AuthConfig): Record<string, string> => {
 
   switch (auth.type) {
     case "basic":
-      if (auth.basic?.username && auth.basic?.password) {
-        const credentials = btoa(
-          `${auth.basic.username}:${auth.basic.password}`,
-        );
+      if (auth.basic?.username || auth.basic?.password) {
+        const username = auth.basic?.username || "";
+        const password = auth.basic?.password || "";
+        const credentials = btoa(`${username}:${password}`);
         return { Authorization: `Basic ${credentials}` };
       }
       break;
     case "bearer":
       if (auth.bearer?.token) {
-        return { Authorization: `Bearer ${auth.bearer.token}` };
+        // Trim token to remove accidental whitespace
+        const token = auth.bearer.token.trim();
+        if (token) {
+          return { Authorization: `Bearer ${token}` };
+        }
       }
       break;
   }
@@ -226,15 +230,12 @@ const getCollectionAuthHeaders = (
   const collection = collections.find((c) => c.id === collectionId);
   if (!collection) return {};
 
-  // Get auth headers from current collection
-  const currentAuthHeaders = generateAuthHeaders(collection.auth);
-
-  // If current collection has auth, use it
-  if (Object.keys(currentAuthHeaders).length > 0) {
-    return currentAuthHeaders;
+  // If collection has configuration (including "none" which means disable auth), use it
+  if (collection.auth) {
+    return generateAuthHeaders(collection.auth);
   }
 
-  // Otherwise, check parent collection recursively
+  // Otherwise, check parent collection recursively (Implicit Inheritance)
   if (collection.parent_id) {
     return getCollectionAuthHeaders(collection.parent_id, collections);
   }
