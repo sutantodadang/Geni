@@ -3,7 +3,6 @@ import { AuthConfig, AuthType } from "../store";
 import { Eye, EyeOff, Lock, Key } from "lucide-react";
 import { Input } from "./ui/Input";
 import { Select } from "./ui/Select";
-import { Label } from "./ui/Label";
 
 interface AuthConfigProps {
   auth?: AuthConfig;
