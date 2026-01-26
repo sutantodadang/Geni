@@ -4,9 +4,18 @@ A lightweight, fast, and native API client built with Rust and Tauri. Geni provi
 
 ![Geni Screenshot](https://via.placeholder.com/800x500?text=Geni+API+Client)
 
+## ✅ Current Status (v0.1.10)
+
+- **Release**: v0.1.10 is the current stable desktop release.
+- **Platform**: Windows, macOS, and Linux builds are supported.
+- **Update Flow**: In-app update check and one-click install are available via the updater.
+- **Import**: OpenAPI/Swagger specs can be imported alongside Postman collections.
+- **Sync**: Optional cloud sync is available (API Server, Supabase, Google Drive).
+- **Development**: Active development with roadmap items tracked in FUTURE_FEATURES.md.
+
 ## ✨ Features
 
-### Core Features (v0.1)
+### Core Features (v0.1.10)
 
 - 🚀 **HTTP Requests**: Send GET, POST, PUT, DELETE, PATCH, HEAD, and OPTIONS requests
 - 📝 **Request Configuration**: Custom headers and request body (JSON, form-data, raw text, URL-encoded)
@@ -16,6 +25,9 @@ A lightweight, fast, and native API client built with Rust and Tauri. Geni provi
 - 🌍 **Environment Variables**: Support for environment variables (e.g., `{{base_url}}`, `{{token}}`)
 - 💾 **Offline Support**: Full offline functionality with local data storage
 - ⚡ **Native Performance**: Built with Rust for maximum speed and efficiency
+- 📦 **OpenAPI Import**: Import OpenAPI/Swagger specs and generate requests
+- 🔄 **Cloud Sync**: Optional sync via API Server, Supabase, or Google Drive
+- ⬆️ **In-App Updates**: One-click update download and install
 
 ### Architecture
 
